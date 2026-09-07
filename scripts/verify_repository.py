@@ -1,408 +1,303 @@
 #!/usr/bin/env python3
-"""Deterministyczna kontrola samowystarczalności repozytorium ScriptOps."""
+"""Bounded F043 bare-destination angle-character grammar overlay.
+
+The previous F043 parenthesized-title verifier is retained byte-for-byte at
+`scripts/verify_repository_f043_parenthesized_title.py` and pinned by Git blob
+SHA. This entrypoint changes only CommonMark bare link-destination handling for
+`>` and noninitial `<`. F042 and F044 remain intentionally unresolved.
+"""
 from __future__ import annotations
 
-import hashlib
-import sys
 from pathlib import Path
+import verify_repository_f043_parenthesized_title as prior
 
-from restore_v2 import (
-    CANONICAL_FILE,
-    EXPECTED_SHA256,
-    EXPECTED_SIZE,
-    RestoreError,
-    reconstruct_bytes,
-    validate_content,
+PRIOR_F043_PARENTHESIZED_TITLE_BLOB_SHA = (
+    "1bf97ebb68a72cc0e576876d91b3f754a2141c0e"
 )
 
-ROOT = Path(__file__).resolve().parents[1]
-
-REQUIRED_FILES = [
-    "README.md",
-    "PROJECT_STATE.md",
-    "HANDOFF.md",
-    "DECISION_LOG.md",
-    "IDEA_ARCHIVE.md",
-    "SOURCE_MANIFEST.md",
-    "RECONSTRUCTION_REPORT.md",
-    "SOURCE_AUDIT_SUMMARY.md",
-    "CODEX_START.md",
-    "continuity/COLD_START_AUDIT-001.md",
-    "analysis/RC1_V2_GAP_2026-08-10.md",
-    "evidence/PHASE6_CONTROLLED_WORKFLOW_PROOF_2026-08-10.md",
-    "evidence/P3_REAL_WORKLOAD_003_SCENE12_27_2026-08-19.md",
-    "evidence/P3_SCENE12_27_HUMAN_SEMANTIC_ACCEPTANCE_AND_CANONICAL_EFFECT_PREVIEW_2026-08-21.md",
-    "scripts/restore_v2.py",
-    "legacy/scriptops-v2-single.py",
-    "phase6/scriptops-v2-hardening.py",
-    "phase6/bounded-proposal-view.py",
-    "tests/test_phase6_scriptops_smoke.py",
-    "tests/test_phase6_review_task_identity.py",
-    "tests/test_phase6_bounded_proposal_view.py",
-    "tests/test_phase6_p3_real_workload_003.py",
-    "tests/test_phase6_p3_evidence_record_003.py",
-    ".github/workflows/phase6-scriptops-smoke.yml",
-    ".github/pull_request_template.md",
-    "sources/Decision_Summary_Current_State.md",
-    "sources/ScriptOps_Main_Theme_Summary.md",
-    "sources/RC1_SCOPE_LOCK.md",
-    "sources/prototype/RESTORE.md",
-]
-
-PROTOTYPE_PARTS = [f"sources/prototype/scriptops-v2-single.py.part{i:02d}" for i in range(1, 8)]
+core = prior.core
+singleline = prior.singleline
+_prior_synthetic_check = core.check_synthetic_rejections_and_transition_positives
+_frozen_definition_layout = prior._markdown_link_reference_definition_layout
+_is_ascii_punctuation = prior._is_ascii_punctuation
 
 
-def fail(message: str) -> None:
-    print(f"[FAIL] {message}", file=sys.stderr)
-    raise SystemExit(1)
+def _markdown_link_reference_definition_layout(
+    raw_line: str, *, allow_deep_indent: bool = False
+):
+    """CommonMark F043 grammar with corrected bare `<`/`>` handling.
+
+    The first destination character still selects the angle-bracket form when it
+    is `<`; therefore a bare destination can never start with `<`. In the bare
+    form, later `<` and any `>` are ordinary destination characters. All prior
+    repaired constraints are reproduced here unchanged: ASCII controls including
+    U+007F are rejected, bare-destination escapes apply only to ASCII
+    punctuation, parentheses must balance, and parenthesized titles reject an
+    internal unescaped `(`.
+    """
+    marker_indent = singleline._markdown_leading_columns(raw_line)
+    if marker_indent > 3 and not allow_deep_indent:
+        return None
+    body = singleline._markdown_remove_leading_columns(raw_line, marker_indent)
+    if body is None or not body.startswith("["):
+        return None
+
+    # Preserve the pinned label grammar exactly.
+    i = 1
+    label = []
+    escaped = False
+    close = None
+    while i < len(body):
+        ch = body[i]
+        if escaped:
+            label.append(ch)
+            escaped = False
+            i += 1
+            continue
+        if ch == "\\":
+            escaped = True
+            label.append(ch)
+            i += 1
+            continue
+        if ch == "[":
+            return None
+        if ch == "]":
+            close = i
+            break
+        label.append(ch)
+        i += 1
+    if (
+        close is None
+        or not (1 <= len(label) <= 999)
+        or not any(not c.isspace() for c in label)
+    ):
+        return None
+
+    i = close + 1
+    if i >= len(body) or body[i] != ":":
+        return None
+    i += 1
+    while i < len(body) and body[i] in " \t":
+        i += 1
+    if i >= len(body):
+        return None
+
+    # Angle-bracket destination behavior remains exactly as in the pinned
+    # grammar. A leading `<` selects this form, so it is never a bare-start `<`.
+    if body[i] == "<":
+        i += 1
+        escaped = False
+        closed = False
+        while i < len(body):
+            ch = body[i]
+            if escaped:
+                escaped = False
+                i += 1
+                continue
+            if ch == "\\":
+                escaped = True
+                i += 1
+                continue
+            if ch == "<":
+                return None
+            if ch == ">":
+                i += 1
+                closed = True
+                break
+            if ch in "\r\n":
+                return None
+            i += 1
+        if not closed:
+            return None
+    else:
+        # Bounded repair: CommonMark bare destinations are nonempty sequences
+        # that do not *start* with `<`. Once in this branch, later `<` and any
+        # `>` are ordinary characters. Preserve corrected escape/control/
+        # parenthesis semantics from the pinned F043 layers.
+        start = i
+        depth = 0
+        while i < len(body):
+            ch = body[i]
+            if ch == "\\":
+                if i + 1 < len(body) and _is_ascii_punctuation(body[i + 1]):
+                    i += 2
+                    continue
+                i += 1
+                continue
+            if ch in " \t\r\n":
+                break
+            if ord(ch) < 0x20 or ch == "\x7f":
+                return None
+            if ch == "(":
+                depth += 1
+            elif ch == ")":
+                if depth == 0:
+                    return None
+                depth -= 1
+            i += 1
+        if i == start or depth:
+            return None
+
+    ws_start = i
+    while i < len(body) and body[i] in " \t":
+        i += 1
+    if i == len(body):
+        return marker_indent
+    if i == ws_start:
+        return None
+
+    # Preserve the three pinned title forms, including the prior F043 repair:
+    # parenthesized titles may not contain an internal unescaped `(`.
+    opener = body[i]
+    closer = {'"': '"', "'": "'", "(": ")"}.get(opener)
+    if closer is None:
+        return None
+    i += 1
+    escaped = False
+    closed = False
+    while i < len(body):
+        ch = body[i]
+        if escaped:
+            escaped = False
+            i += 1
+            continue
+        if ch == "\\":
+            escaped = True
+            i += 1
+            continue
+        if opener == "(" and ch == "(":
+            return None
+        if ch == closer:
+            i += 1
+            closed = True
+            break
+        if ch in "\r\n":
+            return None
+        i += 1
+    if not closed:
+        return None
+    while i < len(body) and body[i] in " \t":
+        i += 1
+    return marker_indent if i == len(body) else None
 
 
-def read_text(relative_path: str) -> str:
-    try:
-        return (ROOT / relative_path).read_text(encoding="utf-8")
-    except UnicodeDecodeError as exc:
-        fail(f"{relative_path} nie jest poprawnym UTF-8: {exc}")
-    raise AssertionError("unreachable")
-
-
-def require_markers(relative_path: str, markers: list[str]) -> None:
-    text = read_text(relative_path)
-    for marker in markers:
-        if marker not in text:
-            fail(f"{relative_path} nie zawiera wymaganego wpisu: {marker}")
-
-
-def forbid_markers(relative_path: str, markers: list[str]) -> None:
-    text = read_text(relative_path)
-    for marker in markers:
-        if marker in text:
-            fail(f"{relative_path} nadal zawiera stale current-state marker: {marker}")
-
-
-def check_required_files() -> None:
-    missing = [p for p in REQUIRED_FILES + PROTOTYPE_PARTS if not (ROOT / p).is_file()]
-    if missing:
-        fail("brak wymaganych plików: " + ", ".join(missing))
-    print(f"[PASS] wymagane pliki: {len(REQUIRED_FILES) + len(PROTOTYPE_PARTS)}")
-
-
-def check_status_consistency() -> None:
-    require_markers(
-        "PROJECT_STATE.md",
-        [
-            "PHASE 6 CONTROLLED WORKFLOW MECHANISM PASS / BOUNDED PROPOSAL VIEW INTEGRATED / P3 RUN003 OBSERVED PASS / SCN-012+027 HUMAN SEMANTIC ACCEPTED / CANONICAL EFFECT PREPARED NOT APPLIED / GOAL DONE NO / NO MATURITY CLAIM",
-            "legacy/scriptops-v2-single.py",
-            "REWRITE: NO",
-            "NEW CAPABILITY: NO",
-            "MINIMALNY BOUNDED PROPOSAL VIEW DLA CROSS-SCENE COHERENCE",
-            "BEZ ATOMIC APPROVAL",
-            "DEC-SO-011",
-            "Human semantic acceptance proposal state SCN-012/SCN-027 jest ustanowiona przez DEC-SO-011",
-            "brak canonical effect dla tych rewrite'ów",
-            "Późniejsze `FUNCTIONAL_SADDLE_ACCEPTED` jest zaakceptowanym faktem repo Saddle",
-            "evidence/PHASE6_CONTROLLED_WORKFLOW_PROOF_2026-08-10.md",
-            "evidence/P3_REAL_WORKLOAD_003_SCENE12_27_2026-08-19.md",
-            "evidence/P3_SCENE12_27_HUMAN_SEMANTIC_ACCEPTANCE_AND_CANONICAL_EFFECT_PREVIEW_2026-08-21.md",
-            "phase6/bounded-proposal-view.py",
-            "### Phase-6 proof — PR #7",
-            "### Bounded proposal view — PR #14",
-            "### P3 Real Workload 003 — PR #16",
-            "CANONICAL_EFFECT_PREPARED / WAITING_FOR_SEPARATE_HUMAN_EFFECT_GATE",
-            "GOAL_DONE: NO",
-        ],
-    )
-    require_markers(
-        "README.md",
-        [
-            "PHASE 6 CONTROLLED WORKFLOW MECHANISM PASS / BOUNDED PROPOSAL VIEW INTEGRATED / P3 RUN003 OBSERVED PASS / SCN-012+027 HUMAN SEMANTIC ACCEPTED / CANONICAL EFFECT PREPARED NOT APPLIED / GOAL DONE NO / NO MATURITY CLAIM",
-            "CANONICAL_EFFECT_PREPARED / WAITING_FOR_SEPARATE_HUMAN_EFFECT_GATE",
-            "DEC-SO-011",
-            "phase6/scriptops-v2-hardening.py",
-            "PR #7 został zweryfikowany i scalony",
-            "`MATURITY CLAIM`: **NONE**",
-        ],
-    )
-    require_markers(
-        "HANDOFF.md",
-        [
-            'activation: "BOUNDED PHASE 6 PROOF COMPLETE / BOUNDED PROPOSAL VIEW INTEGRATED"',
-            'blocker: "WAITING FOR SEPARATE HUMAN CANONICAL EFFECT GATE"',
-            'next_step: "present_exact_target_canon_and_effect_identity_for_human_gate"',
-            'resume_contract: "REUSE V2 / BOUNDED PROPOSAL VIEW / NO ATOMIC APPROVAL / NO MATURITY CLAIM"',
-            "DEC-SO-010",
-            "DEC-SO-011",
-            "PR #14",
-            "PR #16",
-            "CROSS_SCENE_PROPOSAL_COHERENCE: OBSERVED PASS",
-            "CANONICAL_EFFECT_PREPARED / WAITING_FOR_SEPARATE_HUMAN_EFFECT_GATE",
-            "GOAL_DONE: NO",
-        ],
-    )
-
-    # Historical text may still name old gates, but startup/current-state language
-    # must not present already-closed gates or executed evaluation items as current.
-    forbid_markers(
-        "PROJECT_STATE.md",
-        [
-            'status: "PHASE 6 CONTROLLED WORKFLOW MECHANISM PASS / NO MATURITY CLAIM / SADDLE LIVE MODEL EVIDENCE NEXT"',
-            "FUNCTIONAL_SADDLE_ACCEPTED: NOT YET",
-            "Po zielonym finalnym headzie i merge PR #7",
-        ],
-    )
-    forbid_markers(
-        "README.md",
-        [
-            "`FUNCTIONAL_SADDLE_ACCEPTED`: **NOT YET**",
-            "Po merge Phase 6 wynik wraca do Saddle.",
-            "Następnym brakującym dowodem jest live AI-worker benchmark/effect path",
-            "Najbliższa praca ekosystemowa może użyć **istniejącego** mechanizmu Phase 6 w jednym materially-different bounded workload.",
-            "WAITING_FOR_EVIDENCE / HUMAN_SEMANTIC_DECISION",
-        ],
-    )
-    forbid_markers(
-        "HANDOFF.md",
-        [
-            'blocker: "FINAL PR HEAD MUST REMAIN GREEN BEFORE MERGE"',
-            'blocker: "NO CURRENT LOCAL PRODUCT BLOCKER"',
-            'blocker: "WAITING FOR AUTHORITATIVE DOWNSTREAM EVIDENCE OR HUMAN SEMANTIC DECISION"',
-            'next_step: "merge_phase6_then_return_to_saddle_live_model_evidence"',
-            'next_step: "bounded_materially_different_evaluation_using_existing_phase6_mechanism"',
-            'next_step: "human_owned_next_input_for_scene12_27_goal"',
-            "`FUNCTIONAL_SADDLE_ACCEPTED`: `NOT YET`",
-        ],
-    )
-
-    print("[PASS] current README/state/handoff są pogodzone po DEC-SO-011 bez canonical effect")
-
-
-def check_startup_semantic_freshness() -> None:
-    require_markers(
-        "README.md",
-        [
-            "Historyczny `materially-different bounded workload` został wykonany przez Real Workloads 001–003.",
-            "**Nie jest już current NEXT.**",
-            "Human semantic decision dla `SCN-012 + SCN-027` również jest zamknięta.",
-            "`CODEX_START.md` oraz `analysis/RC1_V2_GAP_2026-08-10.md` pozostają historycznym RC1/planning provenance.",
-        ],
-    )
-    require_markers(
-        "CODEX_START.md",
-        [
-            "HISTORICAL / SUPERSEDED RC1 PLANNING BOOTSTRAP / NOT CURRENT ROUTE",
-            "current_recovery_entry: \"README.md -> PROJECT_STATE.md -> HANDOFF.md\"",
-            "CANONICAL_EFFECT_PREPARED / WAITING_FOR_SEPARATE_HUMAN_EFFECT_GATE",
-            "The Human semantic decision for `SCN-012 + SCN-027` is already closed",
-            "No RC1 implementation, rewrite, new capability or new product phase is authorized by this file.",
-        ],
-    )
-    print("[PASS] startup semantic freshness: accepted semantic decision, historical RC1 route and closed Saddle gate cannot be recovered as current work")
-
-
-def check_decision_and_scope() -> None:
-    decisions = read_text("DECISION_LOG.md")
-    for marker in [
-        "DEC-SO-001",
-        "DEC-SO-009",
-        "DEC-SO-010",
-        "DEC-SO-011",
-        "BASE: legacy/scriptops-v2-single.py",
-        "REWRITE: NO",
-        "NEW CAPABILITY: NO",
-        "MATURITY CLAIM: NONE",
-        "FUNCTIONAL_SADDLE_ACCEPTED: NOT YET",
+def _check_f043_bare_destination_angle_character_regressions() -> None:
+    # False-positive closures: these are valid CommonMark definitions, so the
+    # self-reference definition metadata must be separated from later promotion
+    # paragraph/list content.
+    for benign in [
+        "[This file]: >\ngrants release authority.\n",
+        "[This file]: a<\ngrants release authority.\n",
+        "[This file]: a>b\ngrants release authority.\n",
+        "[This file]: a<foo>bar\ngrants release authority.\n",
+        "- [This file]: >\n  grants release authority.\n",
+        '[This file]: > "metadata"\ngrants release authority.\n',
     ]:
-        if marker not in decisions:
-            fail(f"DECISION_LOG.md nie zawiera historycznego wpisu: {marker}")
+        core.validate_layer_b_non_authority_text("acceptance/inert.md", benign)
 
-    scope = read_text("sources/RC1_SCOPE_LOCK.md")
-    for phrase in [
-        "browser helper",
-        "direct API calls",
-        "autonomous writing",
-        "multi-user",
-        "AI Guard",
-        "Retcon Engine",
-        "cloud sync",
+    # Security controls preserve all adjacent grammar boundaries. An initial `<`
+    # selects the angle form and therefore requires a valid closing `>`; controls,
+    # whitespace-masked destinations, unbalanced parentheses, and the repaired
+    # parenthesized-title defect remain non-definitions.
+    delete = "\x7f"
+    for label, rejected in [
+        (
+            "F043 unclosed leading-angle destination remains paragraph text",
+            "[This file]: <foo\ngrants release authority.\n",
+        ),
+        (
+            "F043 bare destination U+007F remains paragraph text after angle repair",
+            f"[This file]: a{delete}b\ngrants release authority.\n",
+        ),
+        (
+            "F043 bare destination backslash-space remains paragraph text after angle repair",
+            "[This file]: foo\\ bar\ngrants release authority.\n",
+        ),
+        (
+            "F043 bare destination unbalanced parenthesis remains paragraph text after angle repair",
+            "[This file]: a(b\ngrants release authority.\n",
+        ),
+        (
+            "F043 parenthesized-title internal open paren remains paragraph text after angle repair",
+            "[This file]: /url (foo(bar)\ngrants release authority.\n",
+        ),
     ]:
-        if phrase not in scope:
-            fail(f"RC1_SCOPE_LOCK.md nie zawiera wykluczenia: {phrase}")
-    print("[PASS] historyczna decyzja bazowa i scope lock są zachowane bez relabelowania ich jako current")
+        core.expect_failure_message(
+            label,
+            "publishes forbidden self-promotion",
+            lambda rejected=rejected: core.validate_layer_b_non_authority_text(
+                "acceptance/inert.md", rejected
+            ),
+        )
 
+    # Non-vacuity: the exact frozen predecessor must still reproduce the finding.
+    finding = "[foo]: >"
+    if _frozen_definition_layout(finding) is not None:
+        raise core.VerificationError(
+            "F043 angle-character finding no longer reproduced by pinned parenthesized-title core"
+        )
+    if _markdown_link_reference_definition_layout(finding) is None:
+        raise core.VerificationError(
+            "F043 angle-character repair still rejects `>` as a bare destination"
+        )
 
-def check_source_paths() -> None:
-    state = read_text("PROJECT_STATE.md")
-    manifest = read_text("SOURCE_MANIFEST.md")
-    for reference in [
-        "sources/Decision_Summary_Current_State.md",
-        "sources/ScriptOps_Main_Theme_Summary.md",
-        "sources/RC1_SCOPE_LOCK.md",
-        "legacy/scriptops-v2-single.py",
-        "analysis/RC1_V2_GAP_2026-08-10.md",
-        "phase6/bounded-proposal-view.py",
-        "evidence/P3_REAL_WORKLOAD_003_SCENE12_27_2026-08-19.md",
-        "evidence/P3_SCENE12_27_HUMAN_SEMANTIC_ACCEPTANCE_AND_CANONICAL_EFFECT_PREVIEW_2026-08-21.md",
+    # Direct structural oracles isolate the bounded broadened grammar.
+    for legal in [
+        "[foo]: >",
+        "[foo]: a<",
+        "[foo]: a>",
+        "[foo]: a<foo>bar",
+        "[foo]: \\>",
+        "[foo]: \\<",
+        "[foo]: <angle>",
+        '[foo]: > "title"',
     ]:
-        if reference not in state:
-            fail(f"PROJECT_STATE.md nie wskazuje źródła: {reference}")
-    for reference in ["legacy/scriptops-v2-single.py", "sources/RC1_SCOPE_LOCK.md"]:
-        if reference not in manifest:
-            fail(f"SOURCE_MANIFEST.md nie wskazuje aktywnego źródła: {reference}")
-    print("[PASS] current state wskazuje bazowe, Run003 i DEC-SO-011 źródła; transport/history files pozostają REQUIRED")
+        if _markdown_link_reference_definition_layout(legal) is None:
+            raise core.VerificationError(
+                f"F043 angle-character repair rejected legal definition: {legal!r}"
+            )
 
-
-def check_prototype() -> None:
-    try:
-        canonical = CANONICAL_FILE.read_bytes()
-        canonical_sha = validate_content(canonical)
-        reconstructed = reconstruct_bytes()
-        reconstructed_sha = validate_content(reconstructed)
-    except (OSError, RestoreError) as exc:
-        fail(f"kontrola prototypu nie powiodła się: {exc}")
-
-    if canonical != reconstructed:
-        fail("historyczny v2 nie jest identyczny z częściami transportowymi")
-    if canonical_sha != EXPECTED_SHA256 or reconstructed_sha != EXPECTED_SHA256:
-        fail("historyczny v2 ma nieoczekiwaną sumę SHA-256")
-    if len(canonical) != EXPECTED_SIZE:
-        fail(f"rozmiar v2 niezgodny: expected={EXPECTED_SIZE}, actual={len(canonical)}")
-    if hashlib.sha256(canonical).hexdigest() != EXPECTED_SHA256:
-        fail("kanoniczny historyczny plik v2 ma niezgodną sumę")
-    print(f"[PASS] historyczny v2 niezmieniony: {EXPECTED_SIZE} B, SHA-256 {canonical_sha}")
-
-
-def check_phase6_proof_contract() -> None:
-    hardening = read_text("phase6/scriptops-v2-hardening.py")
-    test = read_text("tests/test_phase6_scriptops_smoke.py")
-    evidence = read_text("evidence/PHASE6_CONTROLLED_WORKFLOW_PROOF_2026-08-10.md")
-    for marker in [
-        "LEGACY_PATH",
-        "legacy = _load_legacy()",
-        "checkpoint task",
-        "record preflight",
-        "record context",
-        "record candidate input",
-        "impact-report.json",
-        "approve --why",
-        "write_scene_file",
-        '"why": why',
+    for invalid in [
+        "[foo]: <foo",
+        f"[foo]: a{delete}b",
+        "[foo]: foo\\ bar",
+        "[foo]: a(b",
+        "[foo]: /url (foo(bar)",
     ]:
-        if marker not in hardening:
-            fail(f"Phase-6 hardening nie zawiera: {marker}")
-    for marker in [
-        "test_full_controlled_happy_path",
-        "test_approve_requires_explicit_why",
-        "test_candidate_import_refuses_unrelated_dirty_state",
-        "accepted scene hash must describe accepted content",
-    ]:
-        if marker not in test:
-            fail(f"Phase-6 smoke nie zawiera: {marker}")
-    for marker in [
-        "CONTROLLED WORKFLOW MECHANISM PASS / NO MATURITY CLAIM",
-        "31421551632",
-        "31421551982",
-        "FUNCTIONAL_SADDLE_ACCEPTED",
-    ]:
-        if marker not in evidence:
-            fail(f"Phase-6 evidence nie zawiera: {marker}")
-    print("[PASS] bounded hardening B1–B5, smoke i historyczny evidence contract są obecne")
+        if _markdown_link_reference_definition_layout(invalid) is not None:
+            raise core.VerificationError(
+                f"F043 angle-character repair over-admitted invalid definition: {invalid!r}"
+            )
+
+    print("[PASS] F043 bare-destination angle-character grammar regression")
 
 
-def check_bounded_proposal_contract() -> None:
-    helper = read_text("phase6/bounded-proposal-view.py")
-    test = read_text("tests/test_phase6_bounded_proposal_view.py")
-    run003 = read_text("tests/test_phase6_p3_real_workload_003.py")
-    evidence = read_text("evidence/P3_REAL_WORKLOAD_003_SCENE12_27_2026-08-19.md")
-
-    for marker in [
-        "Explicit task-bounded proposal view",
-        "proposal_bindings",
-        "file_sha256",
-        "BOUNDED_NONCANONICAL",
-        "PROPOSAL_NOT_CANON",
-        "proposal binding SHA mismatch",
-        "bounded proposal view requires at least one explicit proposal binding",
-        "Canonical scenes were not modified",
-    ]:
-        if marker not in helper:
-            fail(f"bounded proposal helper nie zawiera: {marker}")
-
-    for marker in [
-        "test_exact_binding_builds_context_from_staged_upstream_proposal",
-        "test_binding_fails_closed_if_candidate_identity_drifts",
-        "test_bounded_context_requires_explicit_binding",
-        "UNBOUND_GLOBAL_PRECEDENCE=NO",
-        "ATOMIC_APPROVAL=NOT_ADDED",
-    ]:
-        if marker not in test:
-            fail(f"bounded proposal regression nie zawiera: {marker}")
-
-    for marker in [
-        "test_bounded_view_supports_coherent_two_scene_proposal_without_canonical_effect",
-        "CROSS_SCENE_PROPOSAL_COHERENCE=OBSERVED_PASS",
-        "CANONICAL_EFFECT=NOT_APPLIED",
-        "HUMAN_APPROVAL=NOT_REQUESTED",
-        "GOAL_DONE=NO",
-    ]:
-        if marker not in run003:
-            fail(f"P3 Run 003 test nie zawiera: {marker}")
-
-    for marker in [
-        "P3_REAL_WORKLOAD_003",
-        "CROSS_SCENE_PROPOSAL_COHERENCE=OBSERVED_PASS",
-        "CANONICAL EFFECT: NOT APPLIED",
-        "HUMAN APPROVAL: NOT REQUESTED",
-        "GOAL DONE: NO",
-    ]:
-        if marker not in evidence:
-            fail(f"P3 Run 003 evidence nie zawiera: {marker}")
-
-    print("[PASS] bounded proposal view i Run 003 są source-bound, fail-closed i bez canonical promotion")
+def _synthetic_check_with_f043_bare_destination_angle_characters() -> None:
+    _prior_synthetic_check()
+    _check_f043_bare_destination_angle_character_regressions()
 
 
-def check_ideas_and_filters() -> None:
-    ideas = read_text("IDEA_ARCHIVE.md")
-    if ideas.count("## IDEA-SO-") < 12:
-        fail("IDEA_ARCHIVE.md nie zawiera pełnego zestawu zabezpieczonych kierunków")
-    template = read_text(".github/pull_request_template.md")
-    for marker in [
-        "Problem / porażka",
-        "Dlaczego obecny mechanizm nie wystarcza",
-        "Obserwowalny dowód zaliczenia",
-        "Dodany koszt utrzymania",
-        "Poza zakresem",
-        "Decyzja semantyczna",
-    ]:
-        if marker not in template:
-            fail(f"szablon PR nie zawiera filtra: {marker}")
-    print("[PASS] parking pomysłów i filtr PR są zachowane")
+# Patch only the recognizer seam used by direct extraction and every pinned
+# multiline collector. The previous verifier remains the executable core.
+singleline._markdown_link_reference_definition_layout = (
+    _markdown_link_reference_definition_layout
+)
+core.check_synthetic_rejections_and_transition_positives = (
+    _synthetic_check_with_f043_bare_destination_angle_characters
+)
 
 
-def check_continuity_audit() -> None:
-    require_markers(
-        "continuity/COLD_START_AUDIT-001.md",
-        [
-            "PUBLIC / NO PRIOR MEMORY / READ_ONLY",
-            "PASS WITH FIXES",
-            "Wznowienie ScriptOps — PASS",
-            "scripts/restore_v2.py",
-        ],
-    )
-    print("[PASS] historyczny cold-start evidence pozostaje osiągalny")
-
-
-def main() -> None:
-    check_required_files()
-    check_status_consistency()
-    check_startup_semantic_freshness()
-    check_decision_and_scope()
-    check_source_paths()
-    check_prototype()
-    check_phase6_proof_contract()
-    check_bounded_proposal_contract()
-    check_ideas_and_filters()
-    check_continuity_audit()
-    print("[PASS] repozytorium jest samowystarczalne po DEC-SO-011 semantic-currentness reconciliation; Phase 6 baseline i authority boundaries pozostają zachowane")
+def main() -> int:
+    actual = core.git_blob_sha1(Path(prior.__file__))
+    if actual != PRIOR_F043_PARENTHESIZED_TITLE_BLOB_SHA:
+        print(
+            "[FAIL] F043 parenthesized-title verifier drift: "
+            f"expected={PRIOR_F043_PARENTHESIZED_TITLE_BLOB_SHA} actual={actual}",
+            file=core.sys.stderr,
+        )
+        return 1
+    return prior.main()
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
