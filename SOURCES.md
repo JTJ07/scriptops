@@ -1,25 +1,34 @@
 # Źródła rekonstrukcji
 
-Kanoniczny wykaz źródeł, ich roli i granicy kompletności znajduje się w `SOURCE_MANIFEST.md`.
+> X1B AUTHORITY FENCE — `HISTORICAL_RECONSTRUCTION_PROVENANCE_ONLY`
+>
+> This file is supporting reconstruction provenance. It is not a current status router, current next-action source, or active-product remediation authority.
 
-## Materiały zabezpieczone w repo
+## Current authority boundary
 
-Repozytorium zawiera:
+```text
+CURRENT X1B BOOTSTRAP = README.md -> PROJECT_STATE.md -> HANDOFF.md
+SOURCE_MANIFEST canonical label != current X1B authority
+Decision_Summary_Current_State filename != current X1B authority
+historical ACCESS CHECK gap != current next action
+```
 
-- aktualne podsumowanie decyzji produktu;
-- główną definicję ScriptOps;
-- blokadę zakresu RC1;
-- raport rekonstrukcji;
-- podsumowanie audytu 2016 rekordów źródłowych;
-- pełny prototyp `scriptops-v2-single.py` zapisany w odtwarzalnych częściach wraz z sumą SHA-256;
-- rejestr decyzji;
-- archiwum pomysłów z warunkami powrotu;
-- handoff i niezależną instrukcję startową dla Codex.
+The old source package preserved historical product decisions, reconstruction reports, audit material, scope material, v2 prototype transport and decision records. Those materials remain available as provenance.
 
-## Materiały pozostawione poza repo
+## Historical reconstruction package
 
-Pełne surowe rozmowy, dane prywatne, duplikaty i całe pierwotne archiwum nie są potrzebne do zwykłego wznowienia pracy. Pozostają zewnętrznym materiałem dowodowym do użycia tylko przy rozstrzyganiu konkretnego sporu lub brakującego pochodzenia decyzji.
+- `SOURCE_MANIFEST.md` — historical/reconstruction provenance manifest;
+- `SOURCE_AUDIT_SUMMARY.md` — historical source audit;
+- `RECONSTRUCTION_REPORT.md` — historical reconstruction report;
+- `sources/Decision_Summary_Current_State.md` — historical product-governance provenance despite its filename;
+- `sources/RC1_SCOPE_LOCK.md` — historical product-scope provenance;
+- `sources/ScriptOps_Main_Theme_Summary.md` — historical product-vision provenance;
+- `legacy/scriptops-v2-single.py` and `sources/prototype/` — preserved implementation/reconstruction provenance.
 
-## Aktualna luka
+## Historical gap
 
-Nie odnaleziono późniejszej implementacji ScriptOps RC1 ani odpowiedzi Codex powstałej po Final Master Package. Jest to jawna luka dowodowa oznaczona jako `ACCESS CHECK REQUIRED`, a nie ukryty stan projektu.
+The old reconstruction recorded that no later ScriptOps RC1 implementation or Codex answer was found after the Final Master Package and labeled that old gap `ACCESS CHECK REQUIRED`.
+
+That statement remains historical reconstruction context only. It is **not** the current next action and does not override the X1B current bootstrap.
+
+This file grants no merge, deployment, release, V1, canonical-effect or active-product status authority.
