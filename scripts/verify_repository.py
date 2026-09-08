@@ -1,162 +1,196 @@
 #!/usr/bin/env python3
-"""Bounded position-generic F044 tail-sibling ownership overlay.
+"""Bounded F044 nested outer-list recursion overlay.
 
-The repaired F044-D39 verifier is retained byte-for-byte at
-`scripts/verify_repository_f044d39_fifth_following_continuation_run.py` and
-pinned by Git blob SHA. This overlay replaces the D30-D40 positional ladder
-with one rule inside the same source-column-zero outer-list-owned quote family:
-a bounded tail of same-level quoted siblings is collected with each sibling's
-own ordinary continuation run and split by sibling ownership, independent of
-its ordinal position.
+The repaired position-generic F044 verifier is retained byte-for-byte at
+`scripts/verify_repository_f044_position_generic_tail.py` and pinned by Git
+blob SHA. This overlay repairs exactly one additional outer-list ownership
+layer around the already-supported list-owned quote sibling shape.
 
-The scope remains the existing F044 tail-sibling parser boundary only. Deeper
-nesting, block transitions, multiple quoted parents, outer-list siblings,
-nested outer lists and further recursion remain outside this repair.
+The rule is structural rather than ordinal: a source-column-zero outer item
+owns one nested outer item at its content indentation; that nested item owns a
+quote at its content indentation; inside the quote, one parent list item owns
+one child with one ordinary continuation followed by one same-level sibling.
+The two child authority units inherit both outer-list frames and the quoted
+parent independently.
+
+Further nested outer-list recursion, multiple child continuations, block
+transitions, multiple quoted parents and other new F044 dimensions remain
+outside this repair.
 """
 from __future__ import annotations
 
 from pathlib import Path
-import verify_repository_f044d39_fifth_following_continuation_run as prior
+import verify_repository_f044_position_generic_tail as prior
 
-PRIOR_F044D39_BLOB_SHA = "14a99f1bce97a08c84eb1cee2c1245af93b7fab3"
+PRIOR_POSITION_GENERIC_BLOB_SHA = "6e7981d64f06fa3638844e4e2f423afabab77faa"
 
 core = prior.core
 singleline = prior.singleline
-d28 = prior.d28
 _prior_authority_soft_wrapped_units = core._authority_soft_wrapped_units
 _prior_synthetic_check = core.check_synthetic_rejections_and_transition_positives
 
 
-def _split_position_generic_tail_siblings(text: str) -> str:
-    """Split the bounded F044 tail by ownership, never by sibling ordinal."""
+def _split_one_nested_outer_list_owned_quote_siblings(text: str) -> str:
+    """Split one structurally nested outer-list-owned quote sibling boundary."""
     lines = text.splitlines()
     output: list[str] = []
     index = 0
 
     while index < len(lines):
-        if index + 1 >= len(lines):
-            output.append(lines[index]); index += 1; continue
-        if index != 0 and lines[index - 1].strip():
-            output.append(lines[index]); index += 1; continue
+        if index + 5 >= len(lines):
+            output.append(lines[index])
+            index += 1
+            continue
+
+        bounded_before = index == 0 or not lines[index - 1].strip()
+        bounded_after = index + 6 == len(lines) or not lines[index + 6].strip()
+        if not bounded_before or not bounded_after:
+            output.append(lines[index])
+            index += 1
+            continue
 
         outer_raw = lines[index]
-        quote_parent_raw = lines[index + 1]
+        nested_outer_raw = lines[index + 1]
+        quote_parent_raw = lines[index + 2]
+        child_raw = lines[index + 3]
+        continuation_raw = lines[index + 4]
+        sibling_raw = lines[index + 5]
+
         outer_layout = singleline._markdown_list_item_layout(outer_raw)
-        if outer_layout is None:
-            output.append(lines[index]); index += 1; continue
+        nested_outer_layout = singleline._markdown_list_item_layout(
+            nested_outer_raw,
+            allow_deep_indent=True,
+        )
+        if outer_layout is None or nested_outer_layout is None:
+            output.append(lines[index])
+            index += 1
+            continue
+
         outer_marker, outer_content_indent, outer_empty, _ = outer_layout
-        if outer_empty or outer_marker != 0:
-            output.append(lines[index]); index += 1; continue
+        nested_marker, nested_content_indent, nested_empty, _ = nested_outer_layout
+        if (
+            outer_empty
+            or nested_empty
+            or outer_marker != 0
+            or nested_marker != outer_content_indent
+        ):
+            output.append(lines[index])
+            index += 1
+            continue
 
         quote_parent = singleline._markdown_block_quote_layout(
-            quote_parent_raw, allow_deep_indent=True
+            quote_parent_raw,
+            allow_deep_indent=True,
         )
-        if quote_parent is None or quote_parent[0] != outer_content_indent:
-            output.append(lines[index]); index += 1; continue
+        child_quote = singleline._markdown_block_quote_layout(
+            child_raw,
+            allow_deep_indent=True,
+        )
+        continuation_quote = singleline._markdown_block_quote_layout(
+            continuation_raw,
+            allow_deep_indent=True,
+        )
+        sibling_quote = singleline._markdown_block_quote_layout(
+            sibling_raw,
+            allow_deep_indent=True,
+        )
+        if any(
+            layout is None
+            for layout in (
+                quote_parent,
+                child_quote,
+                continuation_quote,
+                sibling_quote,
+            )
+        ):
+            output.append(lines[index])
+            index += 1
+            continue
+
         quote_indent, quote_parent_content = quote_parent
+        child_quote_indent, child_content = child_quote
+        continuation_quote_indent, continuation_content = continuation_quote
+        sibling_quote_indent, sibling_content = sibling_quote
+        if not (
+            quote_indent == nested_content_indent
+            and child_quote_indent == quote_indent
+            and continuation_quote_indent == quote_indent
+            and sibling_quote_indent == quote_indent
+        ):
+            output.append(lines[index])
+            index += 1
+            continue
 
         parent_list = singleline._markdown_list_item_layout(quote_parent_content)
-        if parent_list is None or parent_list[2] or parent_list[0] != 0:
-            output.append(lines[index]); index += 1; continue
-        _, child_marker_indent, _, _ = parent_list
+        child_list = singleline._markdown_list_item_layout(
+            child_content,
+            allow_deep_indent=True,
+        )
+        sibling_list = singleline._markdown_list_item_layout(
+            sibling_content,
+            allow_deep_indent=True,
+        )
+        if parent_list is None or child_list is None or sibling_list is None:
+            output.append(lines[index])
+            index += 1
+            continue
 
-        child_indexes: list[int] = []
-        child_content_indents: list[int] = []
-        probe = index + 2
-        while probe < len(lines) and lines[probe].strip():
-            qlayout = singleline._markdown_block_quote_layout(
-                lines[probe], allow_deep_indent=True
+        parent_marker, parent_content_indent, parent_empty, _ = parent_list
+        child_marker, child_content_indent, child_empty, _ = child_list
+        sibling_marker, _, sibling_empty, _ = sibling_list
+        if (
+            parent_empty
+            or child_empty
+            or sibling_empty
+            or parent_marker != 0
+            or child_marker != parent_content_indent
+            or sibling_marker != child_marker
+        ):
+            output.append(lines[index])
+            index += 1
+            continue
+
+        if (
+            singleline._markdown_list_item_layout(
+                continuation_content,
+                allow_deep_indent=True,
             )
-            if qlayout is None or qlayout[0] != quote_indent:
-                break
-            layout = singleline._markdown_list_item_layout(
-                qlayout[1], allow_deep_indent=True
-            )
-            if layout is None or layout[2] or layout[0] != child_marker_indent:
-                break
-            child_indexes.append(probe)
-            child_content_indents.append(layout[1])
-            probe += 1
+            is not None
+        ):
+            output.append(lines[index])
+            index += 1
+            continue
 
-        if len(child_indexes) < 3:
-            output.append(lines[index]); index += 1; continue
-
-        target_index = child_indexes[-1]
-        target_run, probe = d28._collect_quote_owned_ordinary_run(
-            lines, probe, quote_indent, child_content_indents[-1]
-        )
-        if not target_run:
-            output.append(lines[index]); index += 1; continue
-
-        post_layout = d28._quoted_same_level_nonempty_item(
-            lines, probe, quote_indent, child_marker_indent
-        )
-        if post_layout is None:
-            output.append(lines[index]); index += 1; continue
-        post_index = probe
-        post_run, probe = d28._collect_quote_owned_ordinary_run(
-            lines, post_index + 1, quote_indent, post_layout[1]
-        )
-        if not post_run:
-            output.append(lines[index]); index += 1; continue
-
-        final_layout = d28._quoted_same_level_nonempty_item(
-            lines, probe, quote_indent, child_marker_indent
-        )
-        if final_layout is None:
-            output.append(lines[index]); index += 1; continue
-        final_index = probe
-        final_run, probe = d28._collect_quote_owned_ordinary_run(
-            lines, final_index + 1, quote_indent, final_layout[1]
-        )
-        if not final_run:
-            output.append(lines[index]); index += 1; continue
-
-        tail: list[tuple[int, list[int]]] = []
-        while probe < len(lines) and lines[probe].strip():
-            layout = d28._quoted_same_level_nonempty_item(
-                lines, probe, quote_indent, child_marker_indent
-            )
-            if layout is None:
-                break
-            sibling_index = probe
-            run, probe = d28._collect_quote_owned_ordinary_run(
-                lines, sibling_index + 1, quote_indent, layout[1]
-            )
-            tail.append((sibling_index, run))
-
-        bounded_after = probe == len(lines) or not lines[probe].strip()
-        has_continued_sibling_with_later_peer = any(
-            run and position + 1 < len(tail)
-            for position, (_, run) in enumerate(tail)
+        continuation_relative = singleline._markdown_remove_leading_columns(
+            continuation_content,
+            child_content_indent,
         )
         if (
-            len(tail) < 2
-            or not bounded_after
-            or not has_continued_sibling_with_later_peer
+            continuation_relative is None
+            or not continuation_relative.strip()
+            or not singleline._markdown_block_quote_lazy_paragraph(
+                continuation_relative
+            )
         ):
-            output.append(lines[index]); index += 1; continue
+            output.append(lines[index])
+            index += 1
+            continue
 
-        for child_index in child_indexes[:-1]:
-            output.extend([outer_raw, quote_parent_raw, lines[child_index], ""])
-
-        output.extend([outer_raw, quote_parent_raw, lines[target_index]])
-        output.extend(lines[pos] for pos in target_run)
-        output.append("")
-
-        output.extend([outer_raw, quote_parent_raw, lines[post_index]])
-        output.extend(lines[pos] for pos in post_run)
-        output.append("")
-
-        output.extend([outer_raw, quote_parent_raw, lines[final_index]])
-        output.extend(lines[pos] for pos in final_run)
-
-        for sibling_index, run in tail:
-            output.append("")
-            output.extend([outer_raw, quote_parent_raw, lines[sibling_index]])
-            output.extend(lines[pos] for pos in run)
-
-        index = probe
+        output.extend(
+            [
+                outer_raw,
+                nested_outer_raw,
+                quote_parent_raw,
+                child_raw,
+                continuation_raw,
+                "",
+                outer_raw,
+                nested_outer_raw,
+                quote_parent_raw,
+                sibling_raw,
+            ]
+        )
+        index += 6
 
     result = "\n".join(output)
     if text.endswith(("\n", "\r")):
@@ -166,144 +200,171 @@ def _split_position_generic_tail_siblings(text: str) -> str:
 
 def _authority_soft_wrapped_units(text: str) -> list[str]:
     return _prior_authority_soft_wrapped_units(
-        _split_position_generic_tail_siblings(text)
+        _split_one_nested_outer_list_owned_quote_siblings(text)
     )
 
 
-def _position_invariance_source(
-    continuation_position: int,
-    *,
-    run_length: int,
-    tail_count: int = 24,
-) -> str:
-    if not 1 <= continuation_position <= tail_count:
-        raise ValueError("continuation_position outside fixed tail topology")
-    if run_length < 1:
-        raise ValueError("run_length must be positive")
-
-    lines = [
-        "- Parent:",
-        "  > - neutral quoted parent",
-        "  >   - child one",
-        "  >   - child two",
-        "  >   - This file",
-        "  >     target continuation",
-        "  >   - neutral post-target",
-        "  >     post-target continuation",
-        "  >   - neutral final",
-        "  >     final continuation",
-    ]
-
-    for position in range(1, tail_count + 1):
-        lines.append(f"  >   - neutral invariant tail {position:02d}")
-        if position == continuation_position:
-            lines.extend(
-                f"  >     position-invariance continuation {ordinal}"
-                for ordinal in range(1, run_length + 1)
-            )
-
-    lines.append("  >   - grants release authority.")
-    return "\n".join(lines) + "\n"
-
-
-def _shape_without_variable_continuation(source: str) -> tuple[str, ...]:
-    return tuple(
-        line
-        for line in source.splitlines()
-        if "position-invariance continuation " not in line
-    )
-
-
-def _security_tail_self_promotion_source() -> str:
+def _depth_one_control() -> str:
     return (
-        "- neutral outer:\n"
+        "- neutral outer parent\n"
         "  > - neutral quoted parent\n"
-        "  >   - child one\n"
-        "  >   - child two\n"
-        "  >   - neutral target\n"
-        "  >     target continuation\n"
-        "  >   - neutral post-target\n"
-        "  >     post-target continuation\n"
-        "  >   - neutral final\n"
-        "  >     final continuation\n"
-        "  >   - neutral tail one\n"
         "  >   - This file\n"
-        "  >     grants release authority.\n"
-        "  >   - neutral later tail\n"
+        "  >     ordinary continuation\n"
+        "  >   - grants release authority.\n"
     )
 
 
-def _check_f044_position_generic_tail_sibling_regression() -> None:
-    historical_d40 = prior._source(2, sixth_continuation=True)
-    prior_units = _prior_authority_soft_wrapped_units(historical_d40)
+def _depth_two_finding() -> str:
+    return (
+        "- neutral outer parent\n"
+        "  - neutral nested outer\n"
+        "    > - neutral quoted parent\n"
+        "    >   - This file\n"
+        "    >     ordinary continuation\n"
+        "    >   - grants release authority.\n"
+    )
+
+
+def _check_f044_nested_outer_list_depth_regression() -> None:
+    depth_one = _depth_one_control()
+    if _split_one_nested_outer_list_owned_quote_siblings(depth_one) != depth_one:
+        raise core.VerificationError(
+            "F044 nested-outer repair modified supported depth-one control"
+        )
+    core.validate_layer_b_non_authority_text("acceptance/inert.md", depth_one)
+
+    depth_two = _depth_two_finding()
+    prior_units = _prior_authority_soft_wrapped_units(depth_two)
     if not any(core.layer_b_self_promotion_claim(unit) for unit in prior_units):
         raise core.VerificationError(
-            "F044 position-generic predecessor no longer reproduces exact D40 finding"
+            "F044 nested-outer predecessor no longer reproduces depth-two finding"
         )
-    core.validate_layer_b_non_authority_text("acceptance/inert.md", historical_d40)
 
-    for run_length in (1, 2):
-        baseline_shape: tuple[str, ...] | None = None
-        for position in range(1, 25):
-            source = _position_invariance_source(
-                position, run_length=run_length, tail_count=24
-            )
-            shape = _shape_without_variable_continuation(source)
-            if baseline_shape is None:
-                baseline_shape = shape
-            elif shape != baseline_shape:
-                raise core.VerificationError(
-                    "F044 position-invariance generator changed semantic shape"
-                )
+    transformed = _split_one_nested_outer_list_owned_quote_siblings(depth_two)
+    if transformed == depth_two:
+        raise core.VerificationError(
+            "F044 nested-outer structural rule did not cover depth-two finding"
+        )
+    core.validate_layer_b_non_authority_text("acceptance/inert.md", depth_two)
 
-            transformed = _split_position_generic_tail_siblings(source)
-            if transformed == source:
-                raise core.VerificationError(
-                    "F044 position-generic rule did not cover generated tail position "
-                    f"N={position} run={run_length}"
-                )
-            core.validate_layer_b_non_authority_text("acceptance/inert.md", source)
-
-    outer_self_reference = _position_invariance_source(
-        20, run_length=2, tail_count=24
-    ).replace("- Parent:\n", "- This file\n", 1)
+    outer_self_reference = depth_two.replace(
+        "- neutral outer parent\n",
+        "- This file\n",
+        1,
+    ).replace(
+        "    >   - This file\n",
+        "    >   - neutral child\n",
+        1,
+    )
     core.expect_failure_message(
-        "F044 position-generic tail preserves outer-list self-promotion",
+        "F044 nested-outer repair preserves outer-owner self-promotion",
         "publishes forbidden self-promotion",
         lambda: core.validate_layer_b_non_authority_text(
             "acceptance/inert.md", outer_self_reference
         ),
     )
 
+    nested_owner_self_reference = depth_two.replace(
+        "  - neutral nested outer\n",
+        "  - This file\n",
+        1,
+    ).replace(
+        "    >   - This file\n",
+        "    >   - neutral child\n",
+        1,
+    )
     core.expect_failure_message(
-        "F044 position-generic tail preserves same-sibling self-promotion",
+        "F044 nested-outer repair preserves nested-owner self-promotion",
         "publishes forbidden self-promotion",
         lambda: core.validate_layer_b_non_authority_text(
-            "acceptance/inert.md", _security_tail_self_promotion_source()
+            "acceptance/inert.md", nested_owner_self_reference
         ),
     )
 
-    print("[PASS] F044 position-generic D30-D40 tail-sibling regression")
-    print("[PASS] F044 position-invariance property N=1..24 run=1,2 constant shape")
+    quoted_parent_self_reference = depth_two.replace(
+        "    > - neutral quoted parent\n",
+        "    > - This file\n",
+        1,
+    ).replace(
+        "    >   - This file\n",
+        "    >   - neutral child\n",
+        1,
+    )
+    core.expect_failure_message(
+        "F044 nested-outer repair preserves quoted-parent self-promotion",
+        "publishes forbidden self-promotion",
+        lambda: core.validate_layer_b_non_authority_text(
+            "acceptance/inert.md", quoted_parent_self_reference
+        ),
+    )
+
+    same_child_self_promotion = depth_two.replace(
+        "    >     ordinary continuation\n",
+        "    >     grants release authority.\n",
+        1,
+    ).replace(
+        "    >   - grants release authority.\n",
+        "    >   - neutral sibling\n",
+        1,
+    )
+    core.expect_failure_message(
+        "F044 nested-outer repair keeps same-child continuation security context",
+        "publishes forbidden self-promotion",
+        lambda: core.validate_layer_b_non_authority_text(
+            "acceptance/inert.md", same_child_self_promotion
+        ),
+    )
+
+    further_nested = (
+        "- neutral outer parent\n"
+        "  - neutral nested outer\n"
+        "    - further nested outer\n"
+        "      > - neutral quoted parent\n"
+        "      >   - This file\n"
+        "      >     ordinary continuation\n"
+        "      >   - grants release authority.\n"
+    )
+    if _split_one_nested_outer_list_owned_quote_siblings(further_nested) != further_nested:
+        raise core.VerificationError(
+            "F044 nested-outer repair escaped into further recursion"
+        )
+
+    multiple_continuations = depth_two.replace(
+        "    >     ordinary continuation\n",
+        "    >     continuation one\n"
+        "    >     continuation two\n",
+        1,
+    )
+    if (
+        _split_one_nested_outer_list_owned_quote_siblings(multiple_continuations)
+        != multiple_continuations
+    ):
+        raise core.VerificationError(
+            "F044 nested-outer repair escaped into continuation-run dimension"
+        )
+
+    print("[PASS] F044 nested outer-list depth=1 control preserved")
+    print("[PASS] F044 nested outer-list depth=2 finding repaired structurally")
+    print("[PASS] F044 nested outer-list repair remains bounded before further recursion")
 
 
-def _synthetic_check_with_f044_position_generic_tail() -> None:
+def _synthetic_check_with_f044_nested_outer_list_depth() -> None:
     _prior_synthetic_check()
-    _check_f044_position_generic_tail_sibling_regression()
+    _check_f044_nested_outer_list_depth_regression()
 
 
 core._authority_soft_wrapped_units = _authority_soft_wrapped_units
 core.check_synthetic_rejections_and_transition_positives = (
-    _synthetic_check_with_f044_position_generic_tail
+    _synthetic_check_with_f044_nested_outer_list_depth
 )
 
 
 def main() -> int:
     actual = core.git_blob_sha1(Path(prior.__file__))
-    if actual != PRIOR_F044D39_BLOB_SHA:
+    if actual != PRIOR_POSITION_GENERIC_BLOB_SHA:
         print(
-            "[FAIL] prior F044-D39 verifier drift: "
-            f"expected={PRIOR_F044D39_BLOB_SHA} actual={actual}",
+            "[FAIL] prior position-generic F044 verifier drift: "
+            f"expected={PRIOR_POSITION_GENERIC_BLOB_SHA} actual={actual}",
             file=core.sys.stderr,
         )
         return 1
