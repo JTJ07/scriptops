@@ -1,25 +1,25 @@
 #!/usr/bin/env python3
-"""Bounded F044-D33 later-following-continuation-run overlay.
+"""Bounded F044-D32 later-following-continuation overlay.
 
-The repaired F044-D32 verifier is retained byte-for-byte at
-`scripts/verify_repository_f044d32_later_following_continuation.py` and pinned
-by Git blob SHA. D33 repairs only the proven run-length dimension inside the
-same source-column-zero outer-list-owned quote family: after the first following
+The repaired F044-D31 verifier is retained byte-for-byte at
+`scripts/verify_repository_f044d31_following_continuation_run.py` and pinned by
+Git blob SHA. D32 repairs only one proven adjacent dimension inside the same
+source-column-zero outer-list-owned quote family: after the first following
 sibling owns the D31 continuation run, the next same-level following sibling
-may own two or more ordinary continuation lines before at least one later
+may own exactly one ordinary continuation line before at least one later
 same-level sibling.
 
-Exactly one continuation line on that sibling remains delegated to D32.
-Continuation in still-later following siblings, deeper nesting, block
-transitions, multiple quoted parents, outer-list siblings, nested outer lists
-and further recursion remain outside this patch.
+Two-or-more continuation lines on that later following sibling, continuation in
+still-later following siblings, deeper nesting, block transitions, multiple
+quoted parents, outer-list siblings, nested outer lists and further recursion
+remain outside this patch.
 """
 from __future__ import annotations
 
 from pathlib import Path
-import verify_repository_f044d32_later_following_continuation as prior
+import verify_repository_f044d31_following_continuation_run as prior
 
-PRIOR_F044D32_BLOB_SHA = "30e90f016803ee127e24eec79b3bc7194c297d0d"
+PRIOR_F044D31_BLOB_SHA = "2b3d0af9e04f79cdc6f70e08404791e0159b4ef9"
 
 core = prior.core
 singleline = prior.singleline
@@ -28,8 +28,8 @@ _prior_authority_soft_wrapped_units = core._authority_soft_wrapped_units
 _prior_synthetic_check = core.check_synthetic_rejections_and_transition_positives
 
 
-def _split_later_following_continuation_run(text: str) -> str:
-    """Normalize only D32-family shapes with >=2 later-following continuation lines."""
+def _split_later_following_continuation(text: str) -> str:
+    """Normalize only D31-family shapes with one continued later following sibling."""
     lines = text.splitlines()
     output: list[str] = []
     index = 0
@@ -134,7 +134,7 @@ def _split_later_following_continuation_run(text: str) -> str:
         second_follow_run, probe = d28._collect_quote_owned_ordinary_run(
             lines, second_follow_index + 1, quote_indent, second_follow_layout[1]
         )
-        if len(second_follow_run) < 2:
+        if len(second_follow_run) != 1:
             output.append(lines[index]); index += 1; continue
 
         later_following_indexes: list[int] = []
@@ -184,11 +184,11 @@ def _split_later_following_continuation_run(text: str) -> str:
 
 def _authority_soft_wrapped_units(text: str) -> list[str]:
     return _prior_authority_soft_wrapped_units(
-        _split_later_following_continuation_run(text)
+        _split_later_following_continuation(text)
     )
 
 
-def _check_f044d33_later_following_continuation_run_regression() -> None:
+def _check_f044d32_later_following_continuation_regression() -> None:
     representative = (
         "- Parent:\n"
         "  > - neutral quoted parent\n"
@@ -204,14 +204,13 @@ def _check_f044d33_later_following_continuation_run_regression() -> None:
         "  >     following continuation one\n"
         "  >     following continuation two\n"
         "  >   - neutral following two\n"
-        "  >     later continuation one\n"
-        "  >     later continuation two\n"
+        "  >     later continuation\n"
         "  >   - grants release authority.\n"
     )
     prior_units = _prior_authority_soft_wrapped_units(representative)
     if not any(core.layer_b_self_promotion_claim(unit) for unit in prior_units):
         raise core.VerificationError(
-            "F044-D33 predecessor no longer reproduces later-following-continuation-run finding"
+            "F044-D32 predecessor no longer reproduces later-following-continuation finding"
         )
     core.validate_layer_b_non_authority_text("acceptance/inert.md", representative)
 
@@ -231,15 +230,13 @@ def _check_f044d33_later_following_continuation_run_regression() -> None:
         "  >     following continuation one\n"
         "  >     following continuation two\n"
         "  >   - neutral following two\n"
-        "  >     later continuation one\n"
-        "  >     later continuation two\n"
-        "  >     later continuation three\n"
+        "  >     later continuation\n"
         "  >   - grants release authority.\n"
         "  >   - neutral following four\n",
     )
 
     core.expect_failure_message(
-        "F044-D33 continued later-following child keeps its own self-promotion together",
+        "F044-D32 continued later-following child keeps its own self-promotion together",
         "publishes forbidden self-promotion",
         lambda: core.validate_layer_b_non_authority_text(
             "acceptance/inert.md",
@@ -257,14 +254,13 @@ def _check_f044d33_later_following_continuation_run_regression() -> None:
             "  >     following continuation one\n"
             "  >     following continuation two\n"
             "  >   - This file\n"
-            "  >     ordinary continuation\n"
             "  >     grants release authority.\n"
             "  >   - neutral following three\n",
         ),
     )
 
     core.expect_failure_message(
-        "F044-D33 later promotion sibling inherits outer-list self-reference",
+        "F044-D32 later promotion sibling inherits outer-list self-reference",
         "publishes forbidden self-promotion",
         lambda: core.validate_layer_b_non_authority_text(
             "acceptance/inert.md",
@@ -282,13 +278,12 @@ def _check_f044d33_later_following_continuation_run_regression() -> None:
             "  >     following continuation one\n"
             "  >     following continuation two\n"
             "  >   - neutral following two\n"
-            "  >     later continuation one\n"
-            "  >     later continuation two\n"
+            "  >     later continuation\n"
             "  >   - grants release authority.\n",
         ),
     )
 
-    delegated_d32 = (
+    delegated_d31 = (
         "- Parent:\n"
         "  > - neutral quoted parent\n"
         "  >   - child one\n"
@@ -302,15 +297,13 @@ def _check_f044d33_later_following_continuation_run_regression() -> None:
         "  >   - neutral following one\n"
         "  >     following continuation one\n"
         "  >     following continuation two\n"
-        "  >   - neutral following two\n"
-        "  >     later continuation\n"
         "  >   - grants release authority.\n"
     )
-    if _split_later_following_continuation_run(delegated_d32) != delegated_d32:
-        raise core.VerificationError("F044-D33 escaped into D32 one-line scope")
-    core.validate_layer_b_non_authority_text("acceptance/inert.md", delegated_d32)
+    if _split_later_following_continuation(delegated_d31) != delegated_d31:
+        raise core.VerificationError("F044-D32 escaped into D31 scope")
+    core.validate_layer_b_non_authority_text("acceptance/inert.md", delegated_d31)
 
-    still_later_continuation = (
+    two_later_continuations = (
         "- Parent:\n"
         "  > - neutral quoted parent\n"
         "  >   - child one\n"
@@ -327,33 +320,56 @@ def _check_f044d33_later_following_continuation_run_regression() -> None:
         "  >   - neutral following two\n"
         "  >     later continuation one\n"
         "  >     later continuation two\n"
+        "  >   - grants release authority.\n"
+    )
+    if _split_later_following_continuation(two_later_continuations) != two_later_continuations:
+        raise core.VerificationError(
+            "F044-D32 escaped into two-or-more later-following-continuation scope"
+        )
+
+    still_later_continuation = (
+        "- Parent:\n"
+        "  > - neutral quoted parent\n"
+        "  >   - child one\n"
+        "  >   - child two\n"
+        "  >   - This file\n"
+        "  >     target continuation\n"
+        "  >   - neutral post-target\n"
+        "  >     post-target continuation\n"
+        "  >   - neutral final one\n"
+        "  >     final continuation\n"
+        "  >   - neutral following one\n"
+        "  >     following continuation one\n"
+        "  >     following continuation two\n"
+        "  >   - neutral following two\n"
+        "  >     later continuation\n"
         "  >   - neutral following three\n"
         "  >     still later continuation\n"
         "  >   - grants release authority.\n"
     )
-    if _split_later_following_continuation_run(still_later_continuation) != still_later_continuation:
+    if _split_later_following_continuation(still_later_continuation) != still_later_continuation:
         raise core.VerificationError(
-            "F044-D33 escaped into still-later-following-continuation scope"
+            "F044-D32 escaped into still-later-following-continuation scope"
         )
 
-    print("[PASS] F044-D33 later-following-continuation-run regression")
+    print("[PASS] F044-D32 later-following-continuation regression")
 
 
-def _synthetic_check_with_f044d33() -> None:
+def _synthetic_check_with_f044d32() -> None:
     _prior_synthetic_check()
-    _check_f044d33_later_following_continuation_run_regression()
+    _check_f044d32_later_following_continuation_regression()
 
 
 core._authority_soft_wrapped_units = _authority_soft_wrapped_units
-core.check_synthetic_rejections_and_transition_positives = _synthetic_check_with_f044d33
+core.check_synthetic_rejections_and_transition_positives = _synthetic_check_with_f044d32
 
 
 def main() -> int:
     actual = core.git_blob_sha1(Path(prior.__file__))
-    if actual != PRIOR_F044D32_BLOB_SHA:
+    if actual != PRIOR_F044D31_BLOB_SHA:
         print(
-            "[FAIL] prior F044-D32 verifier drift: "
-            f"expected={PRIOR_F044D32_BLOB_SHA} actual={actual}",
+            "[FAIL] prior F044-D31 verifier drift: "
+            f"expected={PRIOR_F044D31_BLOB_SHA} actual={actual}",
             file=core.sys.stderr,
         )
         return 1
