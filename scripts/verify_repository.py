@@ -1,28 +1,26 @@
 #!/usr/bin/env python3
-"""Bounded F044 nested outer-list recursion overlay.
+"""Bounded depth-generic F044 nested outer-list recursion overlay.
 
-The repaired position-generic F044 verifier is retained byte-for-byte at
-`scripts/verify_repository_f044_position_generic_tail.py` and pinned by Git
-blob SHA. This overlay repairs exactly one additional outer-list ownership
-layer around the already-supported list-owned quote sibling shape.
+The repaired bounded depth=2 verifier is retained byte-for-byte at
+`scripts/verify_repository_f044_nested_outer_depth2.py` and pinned by Git blob
+SHA. This overlay replaces only the nested outer-list depth transition handling
+with one structural recursion rule: starting from a source-column-zero list
+item, follow repeated child list items whose marker indentation equals the
+current owner's content indentation until the owned block quote is reached.
 
-The rule is structural rather than ordinal: a source-column-zero outer item
-owns one nested outer item at its content indentation; that nested item owns a
-quote at its content indentation; inside the quote, one parent list item owns
-one child with one ordinary continuation followed by one same-level sibling.
-The two child authority units inherit both outer-list frames and the quoted
-parent independently.
-
-Further nested outer-list recursion, multiple child continuations, block
-transitions, multiple quoted parents and other new F044 dimensions remain
-outside this repair.
+The rule never consults a numeric recursion depth. It remains limited to the
+same semantic shape already isolated by the depth=2 repair: one quoted parent,
+one child with exactly one ordinary continuation, and one same-level sibling.
+Multiple quoted parents, block transitions, blank/fence/HTML boundaries,
+outer-list siblings, continuation-run generalization, and other F044 dimensions
+remain outside this repair.
 """
 from __future__ import annotations
 
 from pathlib import Path
-import verify_repository_f044_position_generic_tail as prior
+import verify_repository_f044_nested_outer_depth2 as prior
 
-PRIOR_POSITION_GENERIC_BLOB_SHA = "6e7981d64f06fa3638844e4e2f423afabab77faa"
+PRIOR_DEPTH2_BLOB_SHA = "98ef815bd246d600a64de3f379ebd0d7483aa21d"
 
 core = prior.core
 singleline = prior.singleline
@@ -30,50 +28,55 @@ _prior_authority_soft_wrapped_units = core._authority_soft_wrapped_units
 _prior_synthetic_check = core.check_synthetic_rejections_and_transition_positives
 
 
-def _split_one_nested_outer_list_owned_quote_siblings(text: str) -> str:
-    """Split one structurally nested outer-list-owned quote sibling boundary."""
+def _split_recursive_outer_list_owned_quote_siblings(text: str) -> str:
+    """Split the bounded quote sibling shape across any structural owner chain."""
     lines = text.splitlines()
     output: list[str] = []
     index = 0
 
     while index < len(lines):
-        if index + 5 >= len(lines):
-            output.append(lines[index])
-            index += 1
-            continue
-
         bounded_before = index == 0 or not lines[index - 1].strip()
-        bounded_after = index + 6 == len(lines) or not lines[index + 6].strip()
-        if not bounded_before or not bounded_after:
-            output.append(lines[index])
-            index += 1
-            continue
-
-        outer_raw = lines[index]
-        nested_outer_raw = lines[index + 1]
-        quote_parent_raw = lines[index + 2]
-        child_raw = lines[index + 3]
-        continuation_raw = lines[index + 4]
-        sibling_raw = lines[index + 5]
-
-        outer_layout = singleline._markdown_list_item_layout(outer_raw)
-        nested_outer_layout = singleline._markdown_list_item_layout(
-            nested_outer_raw,
-            allow_deep_indent=True,
-        )
-        if outer_layout is None or nested_outer_layout is None:
-            output.append(lines[index])
-            index += 1
-            continue
-
-        outer_marker, outer_content_indent, outer_empty, _ = outer_layout
-        nested_marker, nested_content_indent, nested_empty, _ = nested_outer_layout
+        first_owner = singleline._markdown_list_item_layout(lines[index])
         if (
-            outer_empty
-            or nested_empty
-            or outer_marker != 0
-            or nested_marker != outer_content_indent
+            not bounded_before
+            or first_owner is None
+            or first_owner[2]
+            or first_owner[0] != 0
         ):
+            output.append(lines[index])
+            index += 1
+            continue
+
+        owners = [lines[index]]
+        owner_content_indent = first_owner[1]
+        probe = index + 1
+
+        while probe < len(lines):
+            nested_owner = singleline._markdown_list_item_layout(
+                lines[probe],
+                allow_deep_indent=True,
+            )
+            if (
+                nested_owner is None
+                or nested_owner[2]
+                or nested_owner[0] != owner_content_indent
+            ):
+                break
+            owners.append(lines[probe])
+            owner_content_indent = nested_owner[1]
+            probe += 1
+
+        if probe + 3 >= len(lines):
+            output.append(lines[index])
+            index += 1
+            continue
+
+        quote_parent_raw = lines[probe]
+        child_raw = lines[probe + 1]
+        continuation_raw = lines[probe + 2]
+        sibling_raw = lines[probe + 3]
+        bounded_after = probe + 4 == len(lines) or not lines[probe + 4].strip()
+        if not bounded_after:
             output.append(lines[index])
             index += 1
             continue
@@ -112,7 +115,7 @@ def _split_one_nested_outer_list_owned_quote_siblings(text: str) -> str:
         continuation_quote_indent, continuation_content = continuation_quote
         sibling_quote_indent, sibling_content = sibling_quote
         if not (
-            quote_indent == nested_content_indent
+            quote_indent == owner_content_indent
             and child_quote_indent == quote_indent
             and continuation_quote_indent == quote_indent
             and sibling_quote_indent == quote_indent
@@ -176,21 +179,11 @@ def _split_one_nested_outer_list_owned_quote_siblings(text: str) -> str:
             index += 1
             continue
 
-        output.extend(
-            [
-                outer_raw,
-                nested_outer_raw,
-                quote_parent_raw,
-                child_raw,
-                continuation_raw,
-                "",
-                outer_raw,
-                nested_outer_raw,
-                quote_parent_raw,
-                sibling_raw,
-            ]
-        )
-        index += 6
+        output.extend(owners)
+        output.extend([quote_parent_raw, child_raw, continuation_raw, ""])
+        output.extend(owners)
+        output.extend([quote_parent_raw, sibling_raw])
+        index = probe + 4
 
     result = "\n".join(output)
     if text.endswith(("\n", "\r")):
@@ -200,171 +193,178 @@ def _split_one_nested_outer_list_owned_quote_siblings(text: str) -> str:
 
 def _authority_soft_wrapped_units(text: str) -> list[str]:
     return _prior_authority_soft_wrapped_units(
-        _split_one_nested_outer_list_owned_quote_siblings(text)
+        _split_recursive_outer_list_owned_quote_siblings(text)
     )
 
 
-def _depth_one_control() -> str:
-    return (
-        "- neutral outer parent\n"
-        "  > - neutral quoted parent\n"
-        "  >   - This file\n"
-        "  >     ordinary continuation\n"
-        "  >   - grants release authority.\n"
+def _depth_invariance_source(
+    depth: int,
+    *,
+    owner_self_reference_index: int | None = None,
+    child_text: str = "This file",
+    continuation_text: str = "ordinary continuation",
+    sibling_text: str = "grants release authority.",
+) -> str:
+    if depth < 1:
+        raise ValueError("depth must be positive")
+    if owner_self_reference_index is not None and not 0 <= owner_self_reference_index < depth:
+        raise ValueError("owner_self_reference_index outside owner chain")
+
+    lines: list[str] = []
+    for level in range(depth):
+        label = "This file" if level == owner_self_reference_index else "neutral outer owner"
+        lines.append(f"{'  ' * level}- {label}")
+
+    quote_prefix = "  " * depth
+    lines.extend(
+        [
+            f"{quote_prefix}> - neutral quoted parent",
+            f"{quote_prefix}>   - {child_text}",
+            f"{quote_prefix}>     {continuation_text}",
+            f"{quote_prefix}>   - {sibling_text}",
+        ]
+    )
+    return "\n".join(lines) + "\n"
+
+
+def _semantic_payload_signature(source: str) -> tuple[str, ...]:
+    return tuple(
+        line.lstrip()
+        for line in source.splitlines()
+        if line.lstrip() != "- neutral outer owner"
     )
 
 
-def _depth_two_finding() -> str:
-    return (
-        "- neutral outer parent\n"
-        "  - neutral nested outer\n"
-        "    > - neutral quoted parent\n"
-        "    >   - This file\n"
-        "    >     ordinary continuation\n"
-        "    >   - grants release authority.\n"
-    )
-
-
-def _check_f044_nested_outer_list_depth_regression() -> None:
-    depth_one = _depth_one_control()
-    if _split_one_nested_outer_list_owned_quote_siblings(depth_one) != depth_one:
+def _assert_intermediate_ownership_separation(source: str, depth: int) -> None:
+    transformed = _split_recursive_outer_list_owned_quote_siblings(source)
+    if transformed == source:
         raise core.VerificationError(
-            "F044 nested-outer repair modified supported depth-one control"
+            f"F044 depth-generic rule did not cover recursion depth={depth}"
         )
-    core.validate_layer_b_non_authority_text("acceptance/inert.md", depth_one)
 
-    depth_two = _depth_two_finding()
-    prior_units = _prior_authority_soft_wrapped_units(depth_two)
+    units = _prior_authority_soft_wrapped_units(transformed)
+    normalized = [unit.upper() for unit in units]
+    self_units = [unit for unit in normalized if "THIS FILE" in unit]
+    promotion_units = [
+        unit for unit in normalized if "GRANTS RELEASE AUTHORITY" in unit
+    ]
+    if not self_units or not promotion_units:
+        raise core.VerificationError(
+            f"F044 ownership invariant lost required semantic fragments at depth={depth}"
+        )
+    if any(
+        "THIS FILE" in unit and "GRANTS RELEASE AUTHORITY" in unit
+        for unit in normalized
+    ):
+        raise core.VerificationError(
+            f"F044 ownership invariant fused separated fragments at depth={depth}"
+        )
+
+
+def _check_f044_depth_generic_recursion_regression() -> None:
+    historical_depth_three = _depth_invariance_source(3)
+    prior_units = _prior_authority_soft_wrapped_units(historical_depth_three)
     if not any(core.layer_b_self_promotion_claim(unit) for unit in prior_units):
         raise core.VerificationError(
-            "F044 nested-outer predecessor no longer reproduces depth-two finding"
+            "F044 depth-generic predecessor no longer reproduces depth=3 finding"
         )
 
-    transformed = _split_one_nested_outer_list_owned_quote_siblings(depth_two)
-    if transformed == depth_two:
-        raise core.VerificationError(
-            "F044 nested-outer structural rule did not cover depth-two finding"
+    baseline_signature: tuple[str, ...] | None = None
+    for depth in range(1, 17):
+        source = _depth_invariance_source(depth)
+        signature = _semantic_payload_signature(source)
+        if baseline_signature is None:
+            baseline_signature = signature
+        elif signature != baseline_signature:
+            raise core.VerificationError(
+                "F044 depth-invariance generator changed semantic payload shape"
+            )
+
+        _assert_intermediate_ownership_separation(source, depth)
+        core.validate_layer_b_non_authority_text("acceptance/inert.md", source)
+
+    for depth in (1, 2, 3):
+        core.validate_layer_b_non_authority_text(
+            "acceptance/inert.md",
+            _depth_invariance_source(depth),
         )
-    core.validate_layer_b_non_authority_text("acceptance/inert.md", depth_two)
 
-    outer_self_reference = depth_two.replace(
-        "- neutral outer parent\n",
-        "- This file\n",
-        1,
-    ).replace(
-        "    >   - This file\n",
-        "    >   - neutral child\n",
-        1,
+    deep_outer_self_reference = _depth_invariance_source(
+        16,
+        owner_self_reference_index=0,
+        child_text="neutral child",
     )
     core.expect_failure_message(
-        "F044 nested-outer repair preserves outer-owner self-promotion",
+        "F044 depth-generic recursion preserves outer-owner self-promotion",
         "publishes forbidden self-promotion",
         lambda: core.validate_layer_b_non_authority_text(
-            "acceptance/inert.md", outer_self_reference
+            "acceptance/inert.md", deep_outer_self_reference
         ),
     )
 
-    nested_owner_self_reference = depth_two.replace(
-        "  - neutral nested outer\n",
-        "  - This file\n",
-        1,
-    ).replace(
-        "    >   - This file\n",
-        "    >   - neutral child\n",
-        1,
+    deep_inner_owner_self_reference = _depth_invariance_source(
+        16,
+        owner_self_reference_index=15,
+        child_text="neutral child",
     )
     core.expect_failure_message(
-        "F044 nested-outer repair preserves nested-owner self-promotion",
+        "F044 depth-generic recursion preserves deepest-owner self-promotion",
         "publishes forbidden self-promotion",
         lambda: core.validate_layer_b_non_authority_text(
-            "acceptance/inert.md", nested_owner_self_reference
+            "acceptance/inert.md", deep_inner_owner_self_reference
         ),
     )
 
-    quoted_parent_self_reference = depth_two.replace(
-        "    > - neutral quoted parent\n",
-        "    > - This file\n",
-        1,
-    ).replace(
-        "    >   - This file\n",
-        "    >   - neutral child\n",
-        1,
+    same_child_self_promotion = _depth_invariance_source(
+        16,
+        continuation_text="grants release authority.",
+        sibling_text="neutral sibling",
     )
     core.expect_failure_message(
-        "F044 nested-outer repair preserves quoted-parent self-promotion",
-        "publishes forbidden self-promotion",
-        lambda: core.validate_layer_b_non_authority_text(
-            "acceptance/inert.md", quoted_parent_self_reference
-        ),
-    )
-
-    same_child_self_promotion = depth_two.replace(
-        "    >     ordinary continuation\n",
-        "    >     grants release authority.\n",
-        1,
-    ).replace(
-        "    >   - grants release authority.\n",
-        "    >   - neutral sibling\n",
-        1,
-    )
-    core.expect_failure_message(
-        "F044 nested-outer repair keeps same-child continuation security context",
+        "F044 depth-generic recursion preserves same-child security context",
         "publishes forbidden self-promotion",
         lambda: core.validate_layer_b_non_authority_text(
             "acceptance/inert.md", same_child_self_promotion
         ),
     )
 
-    further_nested = (
-        "- neutral outer parent\n"
-        "  - neutral nested outer\n"
-        "    - further nested outer\n"
-        "      > - neutral quoted parent\n"
-        "      >   - This file\n"
-        "      >     ordinary continuation\n"
-        "      >   - grants release authority.\n"
-    )
-    if _split_one_nested_outer_list_owned_quote_siblings(further_nested) != further_nested:
-        raise core.VerificationError(
-            "F044 nested-outer repair escaped into further recursion"
-        )
-
-    multiple_continuations = depth_two.replace(
-        "    >     ordinary continuation\n",
-        "    >     continuation one\n"
-        "    >     continuation two\n",
+    multiple_continuations = _depth_invariance_source(8).replace(
+        "                >     ordinary continuation\n",
+        "                >     continuation one\n"
+        "                >     continuation two\n",
         1,
     )
     if (
-        _split_one_nested_outer_list_owned_quote_siblings(multiple_continuations)
+        _split_recursive_outer_list_owned_quote_siblings(multiple_continuations)
         != multiple_continuations
     ):
         raise core.VerificationError(
-            "F044 nested-outer repair escaped into continuation-run dimension"
+            "F044 depth-generic repair escaped into continuation-run dimension"
         )
 
-    print("[PASS] F044 nested outer-list depth=1 control preserved")
-    print("[PASS] F044 nested outer-list depth=2 finding repaired structurally")
-    print("[PASS] F044 nested outer-list repair remains bounded before further recursion")
+    print("[PASS] F044 nested outer-list depth=1,2,3 regression under common rule")
+    print("[PASS] F044 depth-invariance property depth=1..16 constant semantic shape")
+    print("[PASS] F044 depth-generic intermediate ownership separation invariant")
+    print("[PASS] F044 depth-generic repair remains bounded to isolated recursion shape")
 
 
-def _synthetic_check_with_f044_nested_outer_list_depth() -> None:
+def _synthetic_check_with_f044_depth_generic_recursion() -> None:
     _prior_synthetic_check()
-    _check_f044_nested_outer_list_depth_regression()
+    _check_f044_depth_generic_recursion_regression()
 
 
 core._authority_soft_wrapped_units = _authority_soft_wrapped_units
 core.check_synthetic_rejections_and_transition_positives = (
-    _synthetic_check_with_f044_nested_outer_list_depth
+    _synthetic_check_with_f044_depth_generic_recursion
 )
 
 
 def main() -> int:
     actual = core.git_blob_sha1(Path(prior.__file__))
-    if actual != PRIOR_POSITION_GENERIC_BLOB_SHA:
+    if actual != PRIOR_DEPTH2_BLOB_SHA:
         print(
-            "[FAIL] prior position-generic F044 verifier drift: "
-            f"expected={PRIOR_POSITION_GENERIC_BLOB_SHA} actual={actual}",
+            "[FAIL] prior bounded depth=2 F044 verifier drift: "
+            f"expected={PRIOR_DEPTH2_BLOB_SHA} actual={actual}",
             file=core.sys.stderr,
         )
         return 1
