@@ -1,19 +1,23 @@
 # Rekonstrukcja projektu „Narzędzie pisarskie / ScriptOps”
 
-## Werdykt główny
+> X1B AUTHORITY FENCE — `HISTORICAL_RECONSTRUCTION_PROVENANCE_ONLY`
+>
+> This report is a historical reconstruction artifact. Its old `miejsce zatrzymania`, `braki do wznowienia`, `jeden następny krok`, generic Human-decision language and product-state labels are provenance only and do not define current X1B state or current next-action authority.
+>
+> Current X1B recovery authority is only `README.md -> PROJECT_STATE.md -> HANDOFF.md`.
+
+## Werdykt główny — historyczne provenance
 
 Materiały opisują jeden historycznie rozwijany kierunek narzędziowy, który wyrósł z rzeczywistej produkcji serialu „Przygody Liścionka”:
 
 1. ręczny workflow `B3 → B2 → RR`;
 2. Mądry Warsztat / S2 Studio;
 3. generalizacja do lokalnego narzędzia ScriptOps;
-4. ScriptOps WebAI v5 / MVP RC1 jako ostatnia udokumentowana wersja docelowa.
+4. ScriptOps WebAI v5 / MVP RC1 jako ostatnia udokumentowana wersja docelowa w rekonstruowanym pakiecie.
 
-Najlepiej potwierdzona nazwa projektu to **Narzędzie pisarskie / ScriptOps**. Nie znaleziono podstaw, aby `Narrative Engine`, `Narrative Engine v5` albo `SPEC-v5` uznać za utrwalone nazwy kanoniczne. `Narrative Change Impact Engine` jest zdolnością ScriptOps, nie osobnym projektem.
+Najlepiej potwierdzona nazwa projektu to **Narzędzie pisarskie / ScriptOps**. `Narrative Change Impact Engine` jest historycznie opisywaną zdolnością ScriptOps, nie osobnym projektem.
 
-## Model działania
-
-ScriptOps ma umożliwiać prowadzenie złożonego projektu narracyjnego z pomocą AI bez oddawania AI kontroli nad kanonem, decyzjami i stanem projektu.
+## Historyczny model działania
 
 ```text
 pomysł / zadanie / żądanie zmiany
@@ -27,9 +31,7 @@ pomysł / zadanie / żądanie zmiany
 → stan umożliwiający wznowienie
 ```
 
-Najważniejsza reguła produktu:
-
-> Odpowiedź AI jest kandydatem. Prawdą staje się dopiero zmiana zwalidowana, zatwierdzona przez człowieka, zapisana z uzasadnieniem i utrwalona w repozytorium.
+Historical product law: AI output is a candidate, not truth. This generic historical Human-approval model is **not** X1B HumanDecision authorship evidence and does not establish current active-product remediation.
 
 ## Historia
 
@@ -51,17 +53,15 @@ Powstał samodzielny prototyp CLI z Git, strukturą projektu, stanami scen, kont
 
 Poziom dowodu: `EXECUTABLE MECHANISM — częściowy`.
 
-Prototyp nie odpowiada pełnemu zakresowi v5 RC1.
-
 ### ScriptOps WebAI v5 / Final Master Package
 
-Pakiet zawiera definicję produktu, podsumowanie decyzji, blokadę zakresu RC1, instrukcje budowy dla Codex, protokoły pracy i materiały post-MVP.
+Pakiet zawierał definicję produktu, podsumowanie decyzji, blokadę zakresu RC1, instrukcje budowy dla Codex, protokoły pracy i materiały post-MVP.
 
 Poziom dowodu: `EXISTING ARTIFACT`.
 
-Nie odnaleziono implementacji v5 RC1 ani logów jej testów.
+Nie odnaleziono w rekonstruowanym pakiecie implementacji v5 RC1 ani logów jej testów.
 
-## Co rzeczywiście działa
+## Co historycznie udokumentowano
 
 | Element | Poziom dowodu |
 |---|---|
@@ -69,40 +69,49 @@ Nie odnaleziono implementacji v5 RC1 ani logów jej testów.
 | produkcyjny system Liścionka | `OBSERVED WORKING RESULT` |
 | Mądry Warsztat / S2 Studio | `OBSERVED WORKING RESULT — częściowy` |
 | `scriptops-v2-single.py` | `EXECUTABLE MECHANISM — częściowy` |
-| ScriptOps v5 RC1 | `EXISTING ARTIFACT / planowana implementacja` |
-| pełny produkt używany powtarzalnie | brak dowodu |
-| `VALIDATED RESULT` | brak |
+| ScriptOps v5 RC1 w starym pakiecie | `EXISTING ARTIFACT / planowana implementacja` |
+| pełny produkt używany powtarzalnie | brak historycznego dowodu w tym pakiecie |
 
-## Najważniejsze rozjazdy
+## Najważniejsze historyczne rozjazdy
 
-1. „Finalna wersja” oznacza finalny pakiet specyfikacyjny, nie gotowy produkt.
-2. Pakiet dla Codex jest materiałem do rozpoczęcia budowy; nie jest buildem.
-3. Kod v2 nie implementuje docelowego modelu v5 RC1.
-4. Redukcja pracy ręcznej nie została jeszcze osiągnięta.
-5. Architektura post-MVP rosła szybciej niż dowód potrzeby, dlatego później została wyłączona z RC1.
-6. W historii występowało kilka lokalnych źródeł prawdy; obecnie ich właścicielem jest `PROJECT_STATE.md` w tym repo.
+1. „Finalna wersja” oznaczała finalny pakiet specyfikacyjny, nie gotowy produkt.
+2. Pakiet dla Codex był materiałem do rozpoczęcia budowy; nie był buildem.
+3. Kod v2 nie implementował pełnego modelu v5 RC1.
+4. Redukcja pracy ręcznej nie była wtedy ustanowiona.
+5. Architektura post-MVP rosła szybciej niż dowód potrzeby i została wyłączona z RC1.
+6. W historii występowało kilka lokalnych źródeł prawdy.
 
-## Miejsce zatrzymania
+## Historyczne miejsce zatrzymania — NIE current NEXT
 
-Zakres ScriptOps v5 RC1 został zamknięty i przygotowano pakiet budowy dla Codex. Instrukcja wymagała, aby Codex najpierw przedstawił drzewo repo, moduły, tabele SQLite, mapę CLI, plan testów, sprzeczności i listę wykluczeń.
+Stary raport zatrzymał się przy pakiecie budowy dla Codex i braku dowodu późniejszej implementacji. Ten punkt zatrzymania jest **historycznym reconstruction provenance only**.
 
-Nie odnaleziono dowodu, że plan został zatwierdzony ani że implementacja ruszyła.
+Old instructions such as:
 
-## Braki do wznowienia
+```text
+ACCESS CHECK
+porównaj v2 z RC1_SCOPE_LOCK
+zdecyduj o bazie implementacji
+przeprowadź test end-to-end
+```
 
-1. Ustalenie, czy istnieje późniejsza implementacja lub odpowiedź Codex.
-2. Jeżeli nie istnieje: porównanie prototypu v2 z `RC1_SCOPE_LOCK.md`.
-3. Decyzja, czy v2 jest bazą, materiałem do odzyskania, czy tylko dowodem historycznym.
-4. Jeden test end-to-end na prawdziwej zmianie narracyjnej.
-5. Kryteria zakończenia RC1.
+must not be recovered as current next-action authority.
 
-## Jeden następny krok
+## Currentness fence
 
-Przeprowadzić `ACCESS CHECK` opisany w `HANDOFF.md`.
+The current repo may contain later Phase-6 evidence and reviewed X1B remediation provenance. This historical report does not adjudicate which runtime is active now.
 
-## Klasyfikacja projektu
+```text
+HISTORICAL RECONSTRUCTION != ACTIVE PRODUCT STATE
+HISTORICAL HUMAN APPROVAL != X1B HumanDecision AUTHORSHIP EVIDENCE
+OLD NEXT STEP != CURRENT NEXT ACTION
+```
 
-- istniejący projekt historyczny i narzędziowy;
-- wpisany w Creative OS jako `QUEUED #1`;
-- lokalne źródło prawdy aktywne;
-- projekt nadal `NOT ACTIVATED` do implementacji.
+Current active-product remediation publication remains `CURRENTNESS_UNESTABLISHED` in the current bootstrap trio.
+
+## Klasyfikacja tego dokumentu
+
+```text
+REGISTRY CLASS = HISTORICAL_RECONSTRUCTION_PROVENANCE_ONLY
+CURRENT X1B AUTHORITY = NO
+MERGE / DEPLOYMENT / RELEASE / V1 AUTHORITY = NO
+```
