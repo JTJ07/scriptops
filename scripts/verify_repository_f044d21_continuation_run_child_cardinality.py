@@ -1,26 +1,28 @@
 #!/usr/bin/env python3
-"""Bounded F044-D22 two-sibling multi-continuation overlay.
+"""Bounded F044-D21 continuation-run x child-cardinality overlay.
 
-The repaired F044-D21 verifier is retained byte-for-byte at
-`scripts/verify_repository_f044d21_continuation_run_child_cardinality.py` and
-pinned by Git blob SHA. D22 repairs only the final missing cell in the bounded
-continuation-run x later-sibling-cardinality matrix for the existing
-source-column-zero outer-list-owned quote family: child one owns a run of two or
-more ordinary continuation lines and is followed by exactly two consecutive
-nonempty same-level child siblings.
+The repaired F044-D20 verifier is retained byte-for-byte at
+`scripts/verify_repository_f044d20_list_owned_post_continuation_child_run.py`
+and pinned by Git blob SHA. D18 already handles continuation runs of length two
+or more when there is exactly one later sibling; D20 handles three-or-more later
+siblings when child one owns exactly one continuation line.
 
-One-continuation cases remain delegated to D19/D20; multi-continuation with one
-later sibling remains delegated to D18; multi-continuation with three or more
-later siblings remains delegated to D21. Continuation in later children, deeper
-nesting, block transitions, multiple quoted parents, outer-list siblings, nested
-outer lists and other list-owned quote recursion remain outside this patch.
+D21 repairs only the proven cross-product: child one owns a run of two or more
+ordinary continuation lines and is followed by three or more consecutive
+nonempty same-level child siblings in the same bounded source-column-zero
+outer-list-owned quote family.
+
+Exactly two later siblings after a multi-line continuation run, continuation in
+later children, deeper nesting, block transitions, multiple quoted parents,
+outer-list siblings, nested outer lists and other list-owned quote recursion
+remain outside this patch.
 """
 from __future__ import annotations
 
 from pathlib import Path
-import verify_repository_f044d21_continuation_run_child_cardinality as prior
+import verify_repository_f044d20_list_owned_post_continuation_child_run as prior
 
-PRIOR_F044D21_BLOB_SHA = "d726566e683365d1071df2cd0930af88da96abd6"
+PRIOR_F044D20_BLOB_SHA = "0d3156b954b0988672b5b183b3e1149d211f9324"
 
 core = prior.core
 singleline = prior.singleline
@@ -28,7 +30,7 @@ _prior_authority_soft_wrapped_units = core._authority_soft_wrapped_units
 _prior_synthetic_check = core.check_synthetic_rejections_and_transition_positives
 
 
-def _split_list_owned_two_sibling_multi_continuation(text: str) -> str:
+def _split_list_owned_multi_continuation_child_run(text: str) -> str:
     lines = text.splitlines()
     output: list[str] = []
     index = 0
@@ -132,7 +134,7 @@ def _split_list_owned_two_sibling_multi_continuation(text: str) -> str:
             probe += 1
 
         bounded_after = probe == len(lines) or not lines[probe].strip()
-        if len(sibling_indexes) != 2 or not bounded_after:
+        if len(sibling_indexes) < 3 or not bounded_after:
             output.append(lines[index]); index += 1; continue
 
         output.extend([outer_raw, quote_parent_raw, child_one_raw])
@@ -150,11 +152,11 @@ def _split_list_owned_two_sibling_multi_continuation(text: str) -> str:
 
 def _authority_soft_wrapped_units(text: str) -> list[str]:
     return _prior_authority_soft_wrapped_units(
-        _split_list_owned_two_sibling_multi_continuation(text)
+        _split_list_owned_multi_continuation_child_run(text)
     )
 
 
-def _check_f044d22_two_sibling_multi_continuation_regression() -> None:
+def _check_f044d21_cross_parameter_regression() -> None:
     representative = (
         "- Parent:\n"
         "  > - neutral quoted parent\n"
@@ -162,16 +164,17 @@ def _check_f044d22_two_sibling_multi_continuation_regression() -> None:
         "  >     continuation one\n"
         "  >     continuation two\n"
         "  >   - neutral child two\n"
+        "  >   - neutral child three\n"
         "  >   - grants release authority.\n"
     )
     prior_units = _prior_authority_soft_wrapped_units(representative)
     if not any(core.layer_b_self_promotion_claim(unit) for unit in prior_units):
         raise core.VerificationError(
-            "F044-D22 predecessor no longer reproduces two-sibling multi-continuation finding"
+            "F044-D21 predecessor no longer reproduces cross-parameter finding"
         )
     core.validate_layer_b_non_authority_text("acceptance/inert.md", representative)
 
-    # Longer continuation remains the same proven run-length dimension.
+    # One more continuation is the same proven run-length dimension.
     core.validate_layer_b_non_authority_text(
         "acceptance/inert.md",
         "- Parent:\n"
@@ -181,11 +184,12 @@ def _check_f044d22_two_sibling_multi_continuation_regression() -> None:
         "  >     continuation two\n"
         "  >     continuation three\n"
         "  >   - neutral child two\n"
+        "  >   - neutral child three\n"
         "  >   - grants release authority.\n",
     )
 
     core.expect_failure_message(
-        "F044-D22 final sibling inherits outer-list self-reference",
+        "F044-D21 final sibling inherits outer-list self-reference",
         "publishes forbidden self-promotion",
         lambda: core.validate_layer_b_non_authority_text(
             "acceptance/inert.md",
@@ -195,11 +199,12 @@ def _check_f044d22_two_sibling_multi_continuation_regression() -> None:
             "  >     continuation one\n"
             "  >     continuation two\n"
             "  >   - neutral child two\n"
+            "  >   - neutral child three\n"
             "  >   - grants release authority.\n",
         ),
     )
     core.expect_failure_message(
-        "F044-D22 final sibling inherits quoted-parent self-reference",
+        "F044-D21 final sibling inherits quoted-parent self-reference",
         "publishes forbidden self-promotion",
         lambda: core.validate_layer_b_non_authority_text(
             "acceptance/inert.md",
@@ -209,11 +214,12 @@ def _check_f044d22_two_sibling_multi_continuation_regression() -> None:
             "  >     continuation one\n"
             "  >     continuation two\n"
             "  >   - neutral child two\n"
+            "  >   - neutral child three\n"
             "  >   - grants release authority.\n",
         ),
     )
 
-    # A self-reference local to the middle child must not leak into the final child.
+    # A self-reference local to one later child must not leak into the final child.
     core.validate_layer_b_non_authority_text(
         "acceptance/inert.md",
         "- neutral outer\n"
@@ -222,45 +228,49 @@ def _check_f044d22_two_sibling_multi_continuation_regression() -> None:
         "  >     continuation one\n"
         "  >     continuation two\n"
         "  >   - This file\n"
+        "  >   - neutral child three\n"
         "  >   - grants release authority.\n",
     )
 
-    # Delegated matrix cells must remain untouched by D22 itself and accepted by prior layers.
-    delegated = [
-        # D19: one continuation + exactly two later siblings.
-        (
-            "- Parent:\n"
-            "  > - neutral quoted parent\n"
-            "  >   - This file\n"
-            "  >     ordinary continuation\n"
-            "  >   - neutral child two\n"
-            "  >   - grants release authority.\n"
-        ),
-        # D18: multi-continuation + exactly one later sibling.
-        (
-            "- Parent:\n"
-            "  > - neutral quoted parent\n"
-            "  >   - This file\n"
-            "  >     continuation one\n"
-            "  >     continuation two\n"
-            "  >   - grants release authority.\n"
-        ),
-        # D21: multi-continuation + three-or-more later siblings.
-        (
-            "- Parent:\n"
-            "  > - neutral quoted parent\n"
-            "  >   - This file\n"
-            "  >     continuation one\n"
-            "  >     continuation two\n"
-            "  >   - neutral child two\n"
-            "  >   - neutral child three\n"
-            "  >   - grants release authority.\n"
-        ),
-    ]
-    for source in delegated:
-        if _split_list_owned_two_sibling_multi_continuation(source) != source:
-            raise core.VerificationError("F044-D22 escaped into delegated matrix cell")
-        core.validate_layer_b_non_authority_text("acceptance/inert.md", source)
+    # One continuation stays delegated to D20.
+    delegated_d20 = (
+        "- Parent:\n"
+        "  > - neutral quoted parent\n"
+        "  >   - This file\n"
+        "  >     ordinary continuation\n"
+        "  >   - neutral child two\n"
+        "  >   - neutral child three\n"
+        "  >   - grants release authority.\n"
+    )
+    if _split_list_owned_multi_continuation_child_run(delegated_d20) != delegated_d20:
+        raise core.VerificationError("F044-D21 escaped into D20 one-continuation scope")
+    core.validate_layer_b_non_authority_text("acceptance/inert.md", delegated_d20)
+
+    # Multi-line continuation with exactly one later sibling stays delegated to D18.
+    delegated_d18 = (
+        "- Parent:\n"
+        "  > - neutral quoted parent\n"
+        "  >   - This file\n"
+        "  >     continuation one\n"
+        "  >     continuation two\n"
+        "  >   - grants release authority.\n"
+    )
+    if _split_list_owned_multi_continuation_child_run(delegated_d18) != delegated_d18:
+        raise core.VerificationError("F044-D21 escaped into D18 one-sibling scope")
+    core.validate_layer_b_non_authority_text("acceptance/inert.md", delegated_d18)
+
+    # Exactly two later siblings after a multi-line run remains explicitly outside D21.
+    outside_two_siblings = (
+        "- Parent:\n"
+        "  > - neutral quoted parent\n"
+        "  >   - This file\n"
+        "  >     continuation one\n"
+        "  >     continuation two\n"
+        "  >   - neutral child two\n"
+        "  >   - grants release authority.\n"
+    )
+    if _split_list_owned_multi_continuation_child_run(outside_two_siblings) != outside_two_siblings:
+        raise core.VerificationError("F044-D21 escaped into unproven two-sibling scope")
 
     for untouched in [
         (
@@ -270,6 +280,7 @@ def _check_f044d22_two_sibling_multi_continuation_regression() -> None:
             "  >     continuation one\n"
             "  >     continuation two\n"
             "  >   - neutral child two\n"
+            "  >   - neutral child three\n"
             "  >   - grants release authority.\n"
             "- outer sibling\n"
         ),
@@ -280,30 +291,31 @@ def _check_f044d22_two_sibling_multi_continuation_regression() -> None:
             "    >     continuation one\n"
             "    >     continuation two\n"
             "    >   - neutral child two\n"
+            "    >   - neutral child three\n"
             "    >   - grants release authority.\n"
         ),
     ]:
-        if _split_list_owned_two_sibling_multi_continuation(untouched) != untouched:
-            raise core.VerificationError("F044-D22 repair escaped bounded matrix scope")
+        if _split_list_owned_multi_continuation_child_run(untouched) != untouched:
+            raise core.VerificationError("F044-D21 repair escaped bounded cross-parameter scope")
 
-    print("[PASS] F044-D22 two-sibling multi-continuation regression")
+    print("[PASS] F044-D21 continuation-run x child-cardinality regression")
 
 
-def _synthetic_check_with_f044d22() -> None:
+def _synthetic_check_with_f044d21() -> None:
     _prior_synthetic_check()
-    _check_f044d22_two_sibling_multi_continuation_regression()
+    _check_f044d21_cross_parameter_regression()
 
 
 core._authority_soft_wrapped_units = _authority_soft_wrapped_units
-core.check_synthetic_rejections_and_transition_positives = _synthetic_check_with_f044d22
+core.check_synthetic_rejections_and_transition_positives = _synthetic_check_with_f044d21
 
 
 def main() -> int:
     actual = core.git_blob_sha1(Path(prior.__file__))
-    if actual != PRIOR_F044D21_BLOB_SHA:
+    if actual != PRIOR_F044D20_BLOB_SHA:
         print(
-            "[FAIL] prior F044-D21 verifier drift: "
-            f"expected={PRIOR_F044D21_BLOB_SHA} actual={actual}",
+            "[FAIL] prior F044-D20 verifier drift: "
+            f"expected={PRIOR_F044D20_BLOB_SHA} actual={actual}",
             file=core.sys.stderr,
         )
         return 1

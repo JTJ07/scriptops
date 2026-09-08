@@ -1,26 +1,26 @@
 #!/usr/bin/env python3
-"""Bounded F044-D22 two-sibling multi-continuation overlay.
+"""Bounded F044-D20 list-owned post-continuation child-run overlay.
 
-The repaired F044-D21 verifier is retained byte-for-byte at
-`scripts/verify_repository_f044d21_continuation_run_child_cardinality.py` and
-pinned by Git blob SHA. D22 repairs only the final missing cell in the bounded
-continuation-run x later-sibling-cardinality matrix for the existing
-source-column-zero outer-list-owned quote family: child one owns a run of two or
-more ordinary continuation lines and is followed by exactly two consecutive
-nonempty same-level child siblings.
+The repaired F044-D19 verifier is retained byte-for-byte at
+`scripts/verify_repository_f044d19_list_owned_child_cardinality.py` and pinned
+by Git blob SHA. D17 covers one sibling after exactly one continuation line and
+D19 covers exactly two. D20 reproduces the same root cause with three sibling
+markers. This layer generalizes only that cardinality dimension for runs of
+three or more same-level nonempty child markers after exactly one continuation.
 
-One-continuation cases remain delegated to D19/D20; multi-continuation with one
-later sibling remains delegated to D18; multi-continuation with three or more
-later siblings remains delegated to D21. Continuation in later children, deeper
-nesting, block transitions, multiple quoted parents, outer-list siblings, nested
-outer lists and other list-owned quote recursion remain outside this patch.
+Longer continuation runs combined with this child-run shape, continuation in a
+later child, deeper nesting, block transitions, multiple quoted parents,
+outer-list siblings, nested outer lists and other list-owned quote recursion
+remain outside.
 """
 from __future__ import annotations
 
 from pathlib import Path
-import verify_repository_f044d21_continuation_run_child_cardinality as prior
+import verify_repository_f044d19_list_owned_child_cardinality as prior
 
-PRIOR_F044D21_BLOB_SHA = "d726566e683365d1071df2cd0930af88da96abd6"
+PRIOR_F044D19_LIST_OWNED_CARDINALITY_BLOB_SHA = (
+    "0803d1d0bca814740f5336569c49b798e7fcdd46"
+)
 
 core = prior.core
 singleline = prior.singleline
@@ -28,13 +28,13 @@ _prior_authority_soft_wrapped_units = core._authority_soft_wrapped_units
 _prior_synthetic_check = core.check_synthetic_rejections_and_transition_positives
 
 
-def _split_list_owned_two_sibling_multi_continuation(text: str) -> str:
+def _split_list_owned_post_continuation_child_run(text: str) -> str:
     lines = text.splitlines()
     output: list[str] = []
     index = 0
 
     while index < len(lines):
-        if index + 5 >= len(lines):
+        if index + 6 >= len(lines):
             output.append(lines[index])
             index += 1
             continue
@@ -46,6 +46,7 @@ def _split_list_owned_two_sibling_multi_continuation(text: str) -> str:
         outer_raw = lines[index]
         quote_parent_raw = lines[index + 1]
         child_one_raw = lines[index + 2]
+        continuation_raw = lines[index + 3]
 
         outer_layout = singleline._markdown_list_item_layout(outer_raw)
         if outer_layout is None:
@@ -60,14 +61,19 @@ def _split_list_owned_two_sibling_multi_continuation(text: str) -> str:
         child_one_quote = singleline._markdown_block_quote_layout(
             child_one_raw, allow_deep_indent=True
         )
-        if quote_parent is None or child_one_quote is None:
+        continuation_quote = singleline._markdown_block_quote_layout(
+            continuation_raw, allow_deep_indent=True
+        )
+        if quote_parent is None or child_one_quote is None or continuation_quote is None:
             output.append(lines[index]); index += 1; continue
 
         quote_indent, quote_parent_content = quote_parent
         child_quote_indent, child_one_content = child_one_quote
+        continuation_quote_indent, continuation_content = continuation_quote
         if not (
             quote_indent == outer_content_indent
             and child_quote_indent == quote_indent
+            and continuation_quote_indent == quote_indent
         ):
             output.append(lines[index]); index += 1; continue
 
@@ -77,7 +83,6 @@ def _split_list_owned_two_sibling_multi_continuation(text: str) -> str:
         )
         if parent_list is None or child_one_list is None:
             output.append(lines[index]); index += 1; continue
-
         parent_marker, parent_content_indent, parent_empty, _ = parent_list
         child_marker, child_content_indent, child_empty, _ = child_one_list
         if (
@@ -88,35 +93,22 @@ def _split_list_owned_two_sibling_multi_continuation(text: str) -> str:
         ):
             output.append(lines[index]); index += 1; continue
 
-        continuation_indexes: list[int] = []
-        probe = index + 3
-        while probe < len(lines) and lines[probe].strip():
-            qlayout = singleline._markdown_block_quote_layout(
-                lines[probe], allow_deep_indent=True
-            )
-            if qlayout is None or qlayout[0] != quote_indent:
-                break
-            content = qlayout[1]
-            if singleline._markdown_list_item_layout(
-                content, allow_deep_indent=True
-            ) is not None:
-                break
-            relative = singleline._markdown_remove_leading_columns(
-                content, child_content_indent
-            )
-            if (
-                relative is None
-                or not relative.strip()
-                or not singleline._markdown_block_quote_lazy_paragraph(relative)
-            ):
-                break
-            continuation_indexes.append(probe)
-            probe += 1
-
-        if len(continuation_indexes) < 2:
+        if singleline._markdown_list_item_layout(
+            continuation_content, allow_deep_indent=True
+        ) is not None:
+            output.append(lines[index]); index += 1; continue
+        relative = singleline._markdown_remove_leading_columns(
+            continuation_content, child_content_indent
+        )
+        if (
+            relative is None
+            or not relative.strip()
+            or not singleline._markdown_block_quote_lazy_paragraph(relative)
+        ):
             output.append(lines[index]); index += 1; continue
 
         sibling_indexes: list[int] = []
+        probe = index + 4
         while probe < len(lines) and lines[probe].strip():
             qlayout = singleline._markdown_block_quote_layout(
                 lines[probe], allow_deep_indent=True
@@ -126,17 +118,20 @@ def _split_list_owned_two_sibling_multi_continuation(text: str) -> str:
             layout = singleline._markdown_list_item_layout(
                 qlayout[1], allow_deep_indent=True
             )
-            if layout is None or layout[2] or layout[0] != child_marker:
+            if (
+                layout is None
+                or layout[2]
+                or layout[0] != child_marker
+            ):
                 break
             sibling_indexes.append(probe)
             probe += 1
 
         bounded_after = probe == len(lines) or not lines[probe].strip()
-        if len(sibling_indexes) != 2 or not bounded_after:
+        if len(sibling_indexes) < 3 or not bounded_after:
             output.append(lines[index]); index += 1; continue
 
-        output.extend([outer_raw, quote_parent_raw, child_one_raw])
-        output.extend(lines[pos] for pos in continuation_indexes)
+        output.extend([outer_raw, quote_parent_raw, child_one_raw, continuation_raw])
         for sibling_index in sibling_indexes:
             output.append("")
             output.extend([outer_raw, quote_parent_raw, lines[sibling_index]])
@@ -150,84 +145,79 @@ def _split_list_owned_two_sibling_multi_continuation(text: str) -> str:
 
 def _authority_soft_wrapped_units(text: str) -> list[str]:
     return _prior_authority_soft_wrapped_units(
-        _split_list_owned_two_sibling_multi_continuation(text)
+        _split_list_owned_post_continuation_child_run(text)
     )
 
 
-def _check_f044d22_two_sibling_multi_continuation_regression() -> None:
+def _check_f044d20_list_owned_cardinality_regression() -> None:
     representative = (
         "- Parent:\n"
         "  > - neutral quoted parent\n"
         "  >   - This file\n"
-        "  >     continuation one\n"
-        "  >     continuation two\n"
+        "  >     ordinary continuation\n"
         "  >   - neutral child two\n"
+        "  >   - neutral child three\n"
         "  >   - grants release authority.\n"
     )
     prior_units = _prior_authority_soft_wrapped_units(representative)
     if not any(core.layer_b_self_promotion_claim(unit) for unit in prior_units):
         raise core.VerificationError(
-            "F044-D22 predecessor no longer reproduces two-sibling multi-continuation finding"
+            "F044-D20 predecessor no longer reproduces four-child finding"
         )
+
     core.validate_layer_b_non_authority_text("acceptance/inert.md", representative)
 
-    # Longer continuation remains the same proven run-length dimension.
+    # One more sibling is the same proven cardinality dimension.
     core.validate_layer_b_non_authority_text(
         "acceptance/inert.md",
         "- Parent:\n"
         "  > - neutral quoted parent\n"
         "  >   - This file\n"
-        "  >     continuation one\n"
-        "  >     continuation two\n"
-        "  >     continuation three\n"
+        "  >     ordinary continuation\n"
         "  >   - neutral child two\n"
+        "  >   - neutral child three\n"
+        "  >   - neutral child four\n"
         "  >   - grants release authority.\n",
     )
 
     core.expect_failure_message(
-        "F044-D22 final sibling inherits outer-list self-reference",
+        "F044-D20 final sibling inherits outer-list self-reference",
         "publishes forbidden self-promotion",
         lambda: core.validate_layer_b_non_authority_text(
             "acceptance/inert.md",
             "- This file\n"
             "  > - neutral quoted parent\n"
             "  >   - child one\n"
-            "  >     continuation one\n"
-            "  >     continuation two\n"
+            "  >     ordinary continuation\n"
             "  >   - neutral child two\n"
+            "  >   - neutral child three\n"
             "  >   - grants release authority.\n",
         ),
     )
     core.expect_failure_message(
-        "F044-D22 final sibling inherits quoted-parent self-reference",
+        "F044-D20 final sibling inherits quoted-parent self-reference",
         "publishes forbidden self-promotion",
         lambda: core.validate_layer_b_non_authority_text(
             "acceptance/inert.md",
             "- neutral outer\n"
             "  > - This file\n"
             "  >   - child one\n"
-            "  >     continuation one\n"
-            "  >     continuation two\n"
+            "  >     ordinary continuation\n"
             "  >   - neutral child two\n"
+            "  >   - neutral child three\n"
             "  >   - grants release authority.\n",
         ),
     )
 
-    # A self-reference local to the middle child must not leak into the final child.
-    core.validate_layer_b_non_authority_text(
-        "acceptance/inert.md",
-        "- neutral outer\n"
-        "  > - neutral quoted parent\n"
-        "  >   - neutral child one\n"
-        "  >     continuation one\n"
-        "  >     continuation two\n"
-        "  >   - This file\n"
-        "  >   - grants release authority.\n",
-    )
-
-    # Delegated matrix cells must remain untouched by D22 itself and accepted by prior layers.
-    delegated = [
-        # D19: one continuation + exactly two later siblings.
+    # Shorter sibling cardinalities stay delegated to D17/D19.
+    for delegated in [
+        (
+            "- Parent:\n"
+            "  > - neutral quoted parent\n"
+            "  >   - This file\n"
+            "  >     ordinary continuation\n"
+            "  >   - grants release authority.\n"
+        ),
         (
             "- Parent:\n"
             "  > - neutral quoted parent\n"
@@ -236,16 +226,14 @@ def _check_f044d22_two_sibling_multi_continuation_regression() -> None:
             "  >   - neutral child two\n"
             "  >   - grants release authority.\n"
         ),
-        # D18: multi-continuation + exactly one later sibling.
-        (
-            "- Parent:\n"
-            "  > - neutral quoted parent\n"
-            "  >   - This file\n"
-            "  >     continuation one\n"
-            "  >     continuation two\n"
-            "  >   - grants release authority.\n"
-        ),
-        # D21: multi-continuation + three-or-more later siblings.
+    ]:
+        if _split_list_owned_post_continuation_child_run(delegated) != delegated:
+            raise core.VerificationError(
+                "F044-D20 cardinality layer escaped into shorter delegated scope"
+            )
+        core.validate_layer_b_non_authority_text("acceptance/inert.md", delegated)
+
+    for untouched in [
         (
             "- Parent:\n"
             "  > - neutral quoted parent\n"
@@ -256,54 +244,61 @@ def _check_f044d22_two_sibling_multi_continuation_regression() -> None:
             "  >   - neutral child three\n"
             "  >   - grants release authority.\n"
         ),
-    ]
-    for source in delegated:
-        if _split_list_owned_two_sibling_multi_continuation(source) != source:
-            raise core.VerificationError("F044-D22 escaped into delegated matrix cell")
-        core.validate_layer_b_non_authority_text("acceptance/inert.md", source)
-
-    for untouched in [
         (
             "- Parent:\n"
             "  > - neutral quoted parent\n"
             "  >   - This file\n"
-            "  >     continuation one\n"
-            "  >     continuation two\n"
+            "  >     ordinary continuation\n"
             "  >   - neutral child two\n"
+            "  >     child-two continuation\n"
+            "  >   - neutral child three\n"
+            "  >   - grants release authority.\n"
+        ),
+        (
+            "- Parent:\n"
+            "  > - neutral quoted parent\n"
+            "  >   - This file\n"
+            "  >     - grandchild\n"
+            "  >   - neutral child two\n"
+            "  >   - neutral child three\n"
+            "  >   - grants release authority.\n"
+        ),
+        (
+            "- Parent:\n"
+            "  > - neutral quoted parent\n"
+            "  >   - This file\n"
+            "  >     ordinary continuation\n"
+            "  >   - neutral child two\n"
+            "  >   - neutral child three\n"
             "  >   - grants release authority.\n"
             "- outer sibling\n"
         ),
-        (
-            "  - nested outer\n"
-            "    > - neutral quoted parent\n"
-            "    >   - This file\n"
-            "    >     continuation one\n"
-            "    >     continuation two\n"
-            "    >   - neutral child two\n"
-            "    >   - grants release authority.\n"
-        ),
     ]:
-        if _split_list_owned_two_sibling_multi_continuation(untouched) != untouched:
-            raise core.VerificationError("F044-D22 repair escaped bounded matrix scope")
+        if _split_list_owned_post_continuation_child_run(untouched) != untouched:
+            raise core.VerificationError(
+                "F044-D20 repair escaped its one-line cardinality scope"
+            )
 
-    print("[PASS] F044-D22 two-sibling multi-continuation regression")
+    print("[PASS] F044-D20 list-owned post-continuation child-run regression")
 
 
-def _synthetic_check_with_f044d22() -> None:
+def _synthetic_check_with_f044d20_cardinality() -> None:
     _prior_synthetic_check()
-    _check_f044d22_two_sibling_multi_continuation_regression()
+    _check_f044d20_list_owned_cardinality_regression()
 
 
 core._authority_soft_wrapped_units = _authority_soft_wrapped_units
-core.check_synthetic_rejections_and_transition_positives = _synthetic_check_with_f044d22
+core.check_synthetic_rejections_and_transition_positives = (
+    _synthetic_check_with_f044d20_cardinality
+)
 
 
 def main() -> int:
     actual = core.git_blob_sha1(Path(prior.__file__))
-    if actual != PRIOR_F044D21_BLOB_SHA:
+    if actual != PRIOR_F044D19_LIST_OWNED_CARDINALITY_BLOB_SHA:
         print(
-            "[FAIL] prior F044-D21 verifier drift: "
-            f"expected={PRIOR_F044D21_BLOB_SHA} actual={actual}",
+            "[FAIL] prior F044-D19 verifier drift: "
+            f"expected={PRIOR_F044D19_LIST_OWNED_CARDINALITY_BLOB_SHA} actual={actual}",
             file=core.sys.stderr,
         )
         return 1
