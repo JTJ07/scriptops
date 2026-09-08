@@ -1,69 +1,42 @@
-# ScriptOps — Main Theme Summary
+# ScriptOps — Main Theme Summary — historical product-vision provenance
 
-## One-line definition
+> X1B AUTHORITY FENCE — `HISTORICAL_PRODUCT_GOVERNANCE_PROVENANCE_ONLY`
+>
+> `Core product law`, generic Human approval and product-vision language in this file are historical governance provenance. They do not establish X1B HumanDecision authorship evidence, active-product remediation, deployment, merge/release authority, canonical-effect authority or V1 authority.
+>
+> Current X1B recovery authority is only `README.md -> PROJECT_STATE.md -> HANDOFF.md`.
 
-ScriptOps is a local truth-control system for AI-assisted narrative and idea-heavy projects.
+## Historical one-line definition
 
-## Better than "screenplay analyzer"
+ScriptOps was framed as a local truth-control system for AI-assisted narrative and idea-heavy projects.
 
-The old framing:
+## Historical product framing
 
-> a tool for analyzing a screenplay
+The old framing `screenplay analyzer` was considered too narrow. The broader historical framing was a local system preserving canon, decisions, ideas, rejected reasoning and change impact while using WebAI as a candidate generator.
 
-is too small.
+## Historical core product law
 
-The better framing:
+The historical product law said AI output is never truth and that a candidate becomes project truth only after validation, impact understanding, Human approval, decision logging and commit.
 
-> a local system that preserves canon, decisions, ideas, rejected reasoning and change impact while using WebAI as a candidate generator.
+For current X1B purposes:
 
-## Core product law
+```text
+PRODUCT VISION / GENERIC HUMAN APPROVAL
+!=
+X1B HumanDecision AUTHORSHIP EVIDENCE
+```
 
-AI output is never truth.
+This file cannot be used to admit or attribute a present HumanDecision.
 
-A WebAI answer, ChatGPT Agent output or Codex suggestion is only a candidate.
+## Historical motivation
 
-A candidate becomes project truth only after:
-1. it is validated,
-2. its impact is understood,
-3. the human approves it,
-4. the decision is logged,
-5. and the change is committed.
+The product vision aimed to prevent loss of good ideas, attractive bad ideas entering canon, forgotten repeated mistakes, lost decision reasons, fake WebAI memory and hidden dependency breakage.
 
-## Why this matters
-
-AI chats generate valuable material, but they also create chaos:
-- good ideas disappear,
-- attractive bad ideas enter the project,
-- repeated mistakes are forgotten,
-- decisions lose their reasons,
-- WebAI becomes fake memory,
-- and late-stage changes break hidden dependencies.
-
-ScriptOps exists to prevent this.
-
-## What ScriptOps should protect
-
-ScriptOps should be a tool that:
-
-- does not allow good ideas to disappear,
-- does not allow bad ideas to enter canon only because they sound good,
-- remembers why something was rejected,
-- detects repeated failure patterns,
-- turns idea chaos into decisions,
-- and prevents Agent/WebAI from becoming the source of truth.
-
-## The product engine
-
-ScriptOps turns this:
+## Historical product engine
 
 ```text
 idea / AI output / change request
-```
-
-into this:
-
-```text
-candidate
+→ candidate
 → context
 → validation
 → impact report
@@ -72,36 +45,15 @@ candidate
 → commit or rejection
 ```
 
-## The strongest long-term capability
+Again, this generic historical flow is not a current X1B admission mechanism.
 
-The most important future capability is not "AI writes better scenes".
+## Historical long-term capability
 
-The strongest capability is:
+The strongest future capability was framed as change-impact analysis: determine what breaks when a detail changes, including occurrences, dependencies, scenes, decisions, stale outputs and required reviews. This was called the Narrative Change Impact Engine.
 
-> If this detail changes, what breaks?
+## Historical RC1 focus
 
-Examples:
-- the hero's blue eyes must become green,
-- a product has no license and must be removed,
-- a location must be renamed,
-- a secret is revealed too early,
-- a character cannot know a fact before scene 23.
-
-ScriptOps should find:
-- occurrences,
-- dependencies,
-- affected scenes,
-- affected decisions,
-- stale outputs,
-- and required reviews.
-
-This is the Narrative Change Impact Engine.
-
-## RC1 focus
-
-RC1 should not try to implement the entire vision.
-
-RC1 should prove the core loop:
+The old RC1 was intended to prove a core loop rather than the full vision:
 
 ```text
 local project
@@ -115,23 +67,17 @@ local project
 → commit
 ```
 
-## Post-MVP focus
+## Historical post-MVP focus
 
-After RC1 proves value:
-- better impact analysis,
-- IdeaOps,
-- rule mining,
-- retcon engine,
-- browser helper,
-- Agent-assisted operations,
-- dashboard,
-- semantic graph,
-- export pipeline.
+Potential later work included better impact analysis, IdeaOps, rule mining, retcon engine, browser helper, Agent-assisted operations, dashboard, semantic graph and export pipeline.
 
-## Main anti-scope rule
+These are preserved ideas, not current implementation authority.
 
-A valuable idea may be preserved without being implemented now.
+## Current authority fence
 
-This is the difference between:
-- protecting vision,
-- and destroying focus.
+A valuable historical idea may remain preserved without becoming current work.
+
+```text
+REGISTRY CLASS = HISTORICAL_PRODUCT_GOVERNANCE_PROVENANCE_ONLY
+CURRENT X1B AUTHORITY = NO
+```
