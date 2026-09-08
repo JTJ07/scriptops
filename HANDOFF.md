@@ -1,192 +1,111 @@
 ---
 project: "ScriptOps"
-portfolio_status: "QUEUED #1"
-activation: "BOUNDED PHASE 6 PROOF COMPLETE / BOUNDED PROPOSAL VIEW INTEGRATED"
 state_owner: "PROJECT_STATE.md"
-blocker: "WAITING FOR SEPARATE HUMAN CANONICAL EFFECT GATE"
-next_step: "present_exact_target_canon_and_effect_identity_for_human_gate"
-resume_contract: "REUSE V2 / BOUNDED PROPOSAL VIEW / NO ATOMIC APPROVAL / NO MATURITY CLAIM"
+current_bootstrap: "README.md -> PROJECT_STATE.md -> HANDOFF.md"
+x1b_research_closure: "CLOSED"
+x1b_active_product_remediation_assertion: "CURRENTNESS_UNESTABLISHED"
+x1b_active_product_assertion_authority: "EXTERNAL_CURRENTNESS_REBIND_REQUIRED"
+x1b_active_product_assertion_evidence: "NONE_ACCEPTED_FOR_THIS_STATUS_PUBLICATION"
+x1b_authority_model: "TWO_LAYER_CLOSED_WORLD_V1"
+next_step: "STOP_BEFORE_CONSEQUENTIAL_WORK_PENDING_SEPARATE_AUTHORITY"
 ---
 
 # HANDOFF — ScriptOps
 
-## Stan wejściowy
+## Current handoff authority
 
-- Projekt: `Narzędzie pisarskie / ScriptOps`
-- Ogólna aktywacja produktu: `NO`
-- Phase 6 mechanism proof: `PASS / MERGED`
-- Baza: `legacy/scriptops-v2-single.py`
-- Bazowy rewrite Phase 6: `NO`
-- Później zaakceptowana wąska capability: `BOUNDED PROPOSAL VIEW / INTEGRATED`
-- Atomic multi-scene approval: `NOT AUTHORIZED / NOT IMPLEMENTED`
-- Maturity claim: `NONE`
-- Lokalny Human-owned no-carrier goal dla `SCN-012 → SCN-027`: `SEMANTICALLY SATISFIED / CANONICAL EFFECT NOT APPLIED / DONE = NO`
-- Lokalne źródło prawdy: `PROJECT_STATE.md`
-
-Nagłówek YAML jest maszynowym skrótem tego samego handoffu. W przypadku sprzeczności obowiązuje `PROJECT_STATE.md` i najnowsza jawna decyzja człowieka.
-
-Bieżący live `main` należy resolve'ować z GitHub przy odczycie przed consequential work. Zapisane SHA poniżej są checkpointami provenance/integracji, nie perpetual live pointers.
-
-## Decyzje
-
-Historyczny `DEC-SO-010`: człowiek wybrał `legacy/scriptops-v2-single.py` jako bazę Saddle Phase 6 — reuse + hardening + proof.
-
-Późniejsza jawna decyzja Human z 2026-08-19:
+This file is the third and final member of the current X1B bootstrap trio.
 
 ```text
-AKCEPTUJĘ KIERUNEK SCRIPTOPS: MINIMALNY BOUNDED PROPOSAL VIEW DLA CROSS-SCENE COHERENCE, BEZ ATOMIC APPROVAL
+X1B_RESEARCH_CLOSURE: CLOSED
+X1B_ACTIVE_PRODUCT_REMEDIATION_ASSERTION: CURRENTNESS_UNESTABLISHED
+X1B_ACTIVE_PRODUCT_ASSERTION_AUTHORITY: EXTERNAL_CURRENTNESS_REBIND_REQUIRED
+X1B_ACTIVE_PRODUCT_ASSERTION_EVIDENCE: NONE_ACCEPTED_FOR_THIS_STATUS_PUBLICATION
+X1B_REVIEWED_REMEDIATION_PROVENANCE: PR #35 / REVIEWED HEAD 7c40a92165714023743e91c63b5b11b102fadd92 / UNMERGED
+X1B_CURRENT_AUTHORITY_BOOTSTRAP: README.md -> PROJECT_STATE.md -> HANDOFF.md
+X1B_AUTHORITY_MODEL: TWO_LAYER_CLOSED_WORLD_V1
 ```
 
-Ta decyzja autoryzowała dokładnie wąski bounded proposal view zintegrowany przez PR #14. Nie jest zgodą na dalsze capability ani maturity promotion.
+A new zero-history session must read exactly the current bootstrap trio first:
 
-Najnowsza jawna decyzja Human z 2026-08-21 (`DEC-SO-011`):
+1. `README.md`
+2. `PROJECT_STATE.md`
+3. `HANDOFF.md`
+4. verify exact X1B field agreement
+5. STOP before consequential work
+6. only then load task-relevant supporting provenance
+
+Supporting provenance is readable but cannot override this trio.
+
+## Mandatory state separations
 
 ```text
-SCN-012 → SCN-027 WYCZERPUJE ZAMIERZONY ZAKRES TEJ DECYZJI.
-
-SCN-012 + SCN-027 PROPOSAL STATE:
-HUMAN SEMANTIC ACCEPTED
-
-NO-CARRIER GOAL FOR THIS BOUNDED SCOPE:
-SEMANTICALLY SATISFIED
-
-PHYSICAL CARRIER CONTROL
-→
-ACCESS CONTROL OF ENCRYPTED AUTHORITATIVE SOURCE
-
-LOSS OF PHYSICAL PENDRIVE / DRAWER BEAT:
-NOT A BLOCKER
-
-CANONICAL EFFECT PREPARATION:
-AUTHORIZED
-
-CANONICAL EFFECT EXECUTION:
-NOT AUTHORIZED WITHOUT SEPARATE HUMAN GATE
+X1B CLOSED != ACTIVE PRODUCT REMEDIATED
+CURRENTNESS_UNESTABLISHED != FALSE
+CURRENTNESS_UNESTABLISHED != TRUE
+CHECKED_OUT_RUNTIME_CLASS != ACTIVE_PRODUCT_STATE
+PR HEAD != ACTIVE DEFAULT BRANCH
+GREEN VERIFICATION != DEPLOYED ENFORCEMENT
+GENERIC HUMAN APPROVAL != X1B HumanDecision AUTHORSHIP EVIDENCE
 ```
 
-## Co zostało udowodnione
+`CURRENTNESS_UNESTABLISHED` is the only active-product remediation assertion allowed by this bounded frame/status correction.
 
-Bazowe B1–B5 pozostają zamknięte na kontrolowanym workflow:
+## Historical decisions and evidence
 
-1. task jest trwałym clean-tree checkpointem;
-2. preflight/context/candidate input/impact nie zostawiają ukrytego dirty lifecycle;
-3. unrelated dirty state blokuje candidate import;
-4. accepted scene hash jest świeży po zmianie statusu;
-5. `approve --why` jest obowiązkowe;
-6. impact report istnieje przed human decision;
-7. canonical scene jest zapisywana dopiero po explicit approval;
-8. decision log + Git zachowują evidence.
+`DEC-SO-010` and `DEC-SO-011` remain historical decision provenance. DEC-SO-011 records the Human semantic acceptance of the bounded `SCN-012 -> SCN-027` proposal state and authorization to prepare, not execute, a canonical effect.
 
-Późniejsze bounded maintenance i evaluation udowodniły dodatkowo:
-
-- numeric staged-candidate selection i symlink rejection — PR #10;
-- snapshot semantics dla lokalnych SHA — PR #11;
-- review task identity collision path zamknięty — PR #15;
-- exact task-local proposal binding przez path + SHA-256 — PR #14;
-- unbound scenes zachowują canonical-first resolution — brak globalnego `staging wins`;
-- candidate identity drift blokuje bounded context;
-- P3 Run 003 dla SCN-012 → SCN-027: `CROSS_SCENE_PROPOSAL_COHERENCE=OBSERVED_PASS` bez canonical effect.
-
-Historyczny `legacy/scriptops-v2-single.py` nie został przepisany. `phase6/scriptops-v2-hardening.py` pozostaje bazowym hardening shimem, a `phase6/bounded-proposal-view.py` jest małym jawnie opt-in helperem nad istniejącym mechanizmem.
-
-## Evidence i integracja
-
-Bazowy proof:
-
-`evidence/PHASE6_CONTROLLED_WORKFLOW_PROOF_2026-08-10.md`
-
-Real workload evidence:
-
-`evidence/P3_REAL_WORKLOAD_003_SCENE12_27_2026-08-19.md`
-
-Prepared Human semantic acceptance + exact effect preview:
-
-`evidence/P3_SCENE12_27_HUMAN_SEMANTIC_ACCEPTANCE_AND_CANONICAL_EFFECT_PREVIEW_2026-08-21.md`
-
-Kluczowe checkpointy:
-
-```text
-PR #10 candidate-selection maintenance merge: dae2eb084e9dea51d576a55334cc3dc1dc21bc02
-PR #15 review-task-id P0 merge:          06a2ffa3f0ce436e10eee4448a586fbfbaba9ac8
-PR #14 bounded proposal view merge:      817c57a313cbf195cf9ed60e88b36a2f09fa4fab
-PR #16 Run 003 evidence merge:            43ab980d4e0af33bc9a628f3d8b70617a14fb9db
-```
-
-Run 003 established:
+Historical controlled-workflow evidence established:
 
 ```text
 BOUNDED_UPSTREAM_CONTEXT: PASS
 DOWNSTREAM_CANDIDATE: STAGED
 CROSS_SCENE_PROPOSAL_COHERENCE: OBSERVED PASS
 CANONICAL_EFFECT: NOT APPLIED
-HUMAN_APPROVAL: NOT REQUESTED
 GOAL_DONE: NO
 ```
 
-DEC-SO-011 later adds Human semantic acceptance of the exact two-scene proposal, but still does not create canonical effect authority.
+The historical Phase-6 `approve --why` mechanism and its generic Human attribution are not sufficient X1B HumanDecision authorship evidence. Do not recover that route as the next secure X1B effect path.
 
-## Downstream Saddle context
+Historical evidence remains available in:
 
-Historyczny gate `SADDLE LIVE MODEL EVIDENCE NEXT` jest zamknięty w zaakceptowanej historii Saddle. `FUNCTIONAL_SADDLE_ACCEPTED` jest faktem Saddle, nie lokalnym maturity claim ScriptOps i nie daje ScriptOps nowej authority.
+- `evidence/PHASE6_CONTROLLED_WORKFLOW_PROOF_2026-08-10.md`;
+- `evidence/P3_REAL_WORKLOAD_003_SCENE12_27_2026-08-19.md`;
+- `evidence/P3_SCENE12_27_HUMAN_SEMANTIC_ACCEPTANCE_AND_CANONICAL_EFFECT_PREVIEW_2026-08-21.md`;
+- `DECISION_LOG.md`;
+- `RECONSTRUCTION_REPORT.md`;
+- `SOURCE_AUDIT_SUMMARY.md`.
 
-Nie wracać do tego gate'u jako do aktualnego następnego kroku.
+These are provenance, not current X1B authority.
 
-## Czego nadal nie udowodniono
-
-- brak maturity claim ScriptOps v5/RC1;
-- brak independent external user test ScriptOps;
-- brak produkcyjnego narrative-value claim;
-- brak ScriptOps AI-model-quality claim;
-- brak production identity/request-origin provider jako capability ScriptOps;
-- whole-project dependency completeness poza dostarczonym realnym łańcuchem SCN-012 → SCN-027 nie jest ustanowiona ani wymagana przez DEC-SO-011;
-- Human semantic acceptance proposal state SCN-012 + SCN-027: `YES / DEC-SO-011`;
-- canonical effect dla rewrite'ów: `NOT APPLIED`;
-- atomic multi-scene approval: `NOT AUTHORIZED / NOT IMPLEMENTED`;
-- Human-owned no-carrier goal: `SEMANTICALLY SATISFIED FOR BOUNDED SCOPE / DONE = NO UNTIL CANONICAL EFFECT`.
-
-## Zakaz dryfu
-
-Nie dodawać browser helpera, model/API automation, autonomous approval, atomic multi-scene approval, agent framework, multi-agent, GUI/dashboard, vector DB, semantic graph, multi-user ani innych capability bez nowej jawnej decyzji.
-
-Bounded proposal view jest już zaakceptowanym, wąskim wyjątkiem. Nie rozszerzać go interpretacyjnie do roadmapy.
-
-## Jeden następny krok
-
-Current state:
+## Reviewed remediation provenance
 
 ```text
-CANONICAL_EFFECT_PREPARED / WAITING_FOR_SEPARATE_HUMAN_EFFECT_GATE
+FJ899/scriptops PR #35
+HEAD = 7c40a92165714023743e91c63b5b11b102fadd92
+STATE = REVIEWED / UNMERGED
 ```
 
-Nie szukać dalszego downstream material dla tej decyzji i nie wracać do semantic review SCN-012/027.
+PR #35 is not active-product proof. If this frame/status correction is integrated first, PR #35 must not be merged as-is afterward. Any later V2 integration requires a fresh reviewed candidate against then-current default branch or an equivalently reviewed integration preserving both runtime/security and this authority model.
 
-Repo `FJ899/scriptops` jest repo narzędzia. Real workload scen był materializowany w tymczasowym projekcie ewaluacyjnym; nie wolno udawać, że zmiana plików narzędzia jest canonical screenplay effect.
+## Consequential work rule
 
-Przed efektem trzeba przedstawić Human:
+This handoff does not authorize:
 
-1. exact target project / canonical scene identities;
-2. exact accepted source identities dla SCN-012 i SCN-027;
-3. exact candidate identities zgodne z DEC-SO-011;
-4. exact `why` do decision logu;
-5. potwierdzenie braku unrelated canonical changes.
+```text
+legacy approve --why as X1B authorship evidence
+canonical scene effect
+PR #35 merge/rebase/cherry-pick
+deployment / release / tag
+active-product status promotion
+V1 action
+new capability
+```
 
-Dopiero osobny Human gate może autoryzować `approve --why` / canonical write.
+A future active-product status promotion requires external read-only remote-main resolution, runtime-identity binding, durable currentness evidence, separate Human acceptance and a separate status-only promotion candidate.
 
-## Pliki do otwarcia przez nową sesję
+## Historical product context
 
-1. `README.md`
-2. `PROJECT_STATE.md`
-3. `HANDOFF.md`
-4. `DECISION_LOG.md` — DEC-SO-011 + baseline Phase 6
-5. `analysis/RC1_V2_GAP_2026-08-10.md`
-6. `legacy/scriptops-v2-single.py`
-7. `phase6/scriptops-v2-hardening.py`
-8. `phase6/bounded-proposal-view.py`
-9. `tests/test_phase6_bounded_proposal_view.py`
-10. `tests/test_phase6_p3_real_workload_003.py`
-11. `tests/test_phase6_p3_evidence_record_003.py`
-12. `evidence/P3_REAL_WORKLOAD_003_SCENE12_27_2026-08-19.md`
-13. `evidence/P3_SCENE12_27_HUMAN_SEMANTIC_ACCEPTANCE_AND_CANONICAL_EFFECT_PREVIEW_2026-08-21.md`
-14. `scripts/verify_repository.py`
+The old `CANONICAL_EFFECT_PREPARED / WAITING_FOR_SEPARATE_HUMAN_EFFECT_GATE` wording remains historical DEC-SO-011 provenance only. It is not current next-action authority under X1B.
 
-Accepted downstream context may be checked in `FJ899/Saddle` as supporting provenance. Local ScriptOps state remains owned by this repo.
+The historical bounded proposal view remains integrated provenance; atomic multi-scene approval remains not authorized. `MATURITY CLAIM: NONE`.
