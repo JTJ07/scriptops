@@ -1,408 +1,325 @@
 #!/usr/bin/env python3
-"""Deterministyczna kontrola samowystarczalności repozytorium ScriptOps."""
+"""Bounded F044 multiple quoted-parent sibling-separation overlay.
+
+The repaired depth-generic F044 verifier is retained byte-for-byte at
+`scripts/verify_repository_f044_depth_generic_recursion.py` and pinned by Git
+blob SHA. This overlay changes only sibling quoted-parent scope separation:
+when a new quoted parent item begins at the same quote/list level, the previous
+quoted parent's scope ends before authority units are folded.
+
+This is a structural sibling-boundary rule, not a parent-count enumeration.
+Outer-list sibling transitions, block transitions, new recursion-depth variants,
+parent-count sweeps and other independent F044 dimensions remain outside scope.
+"""
 from __future__ import annotations
 
-import hashlib
-import sys
 from pathlib import Path
+import verify_repository_f044_depth_generic_recursion as prior
 
-from restore_v2 import (
-    CANONICAL_FILE,
-    EXPECTED_SHA256,
-    EXPECTED_SIZE,
-    RestoreError,
-    reconstruct_bytes,
-    validate_content,
+PRIOR_DEPTH_GENERIC_BLOB_SHA = "8535941463926c4b9101fc462e56eaa28aebf099"
+
+core = prior.core
+singleline = prior.singleline
+_prior_authority_soft_wrapped_units = core._authority_soft_wrapped_units
+_prior_synthetic_check = core.check_synthetic_rejections_and_transition_positives
+
+
+def _quoted_layout_at(raw_line: str, quote_indent: int) -> tuple[int, str] | None:
+    layout = singleline._markdown_block_quote_layout(
+        raw_line,
+        allow_deep_indent=True,
+    )
+    if layout is None or layout[0] != quote_indent:
+        return None
+    return layout
+
+
+def _quoted_parent_layout(
+    raw_line: str,
+    quote_indent: int,
+) -> tuple[int, int, bool, bool] | None:
+    quote = _quoted_layout_at(raw_line, quote_indent)
+    if quote is None:
+        return None
+    layout = singleline._markdown_list_item_layout(quote[1])
+    if layout is None or layout[2] or layout[0] != 0:
+        return None
+    return layout
+
+
+def _collect_bounded_parent_group(
+    lines: list[str],
+    start: int,
+    quote_indent: int,
+) -> tuple[list[str], int] | None:
+    """Collect one parent -> exactly one child -> optional one ordinary line."""
+    parent = _quoted_parent_layout(lines[start], quote_indent)
+    if parent is None:
+        return None
+    _, parent_content_indent, _, _ = parent
+
+    child_index = start + 1
+    if child_index >= len(lines) or not lines[child_index].strip():
+        return None
+    child_quote = _quoted_layout_at(lines[child_index], quote_indent)
+    if child_quote is None:
+        return None
+    child = singleline._markdown_list_item_layout(
+        child_quote[1],
+        allow_deep_indent=True,
+    )
+    if child is None or child[2] or child[0] != parent_content_indent:
+        return None
+    _, child_content_indent, _, _ = child
+
+    group = [lines[start], lines[child_index]]
+    probe = child_index + 1
+
+    if probe < len(lines) and lines[probe].strip():
+        if _quoted_parent_layout(lines[probe], quote_indent) is not None:
+            return group, probe
+
+        continuation_quote = _quoted_layout_at(lines[probe], quote_indent)
+        if continuation_quote is None:
+            return None
+        if (
+            singleline._markdown_list_item_layout(
+                continuation_quote[1],
+                allow_deep_indent=True,
+            )
+            is not None
+        ):
+            return None
+        relative = singleline._markdown_remove_leading_columns(
+            continuation_quote[1],
+            child_content_indent,
+        )
+        if (
+            relative is None
+            or not relative.strip()
+            or not singleline._markdown_block_quote_lazy_paragraph(relative)
+        ):
+            return None
+        group.append(lines[probe])
+        probe += 1
+
+    return group, probe
+
+
+def _split_sibling_quoted_parents(text: str) -> str:
+    """Separate sibling quoted parents while preserving their outer owner path."""
+    lines = text.splitlines()
+    output: list[str] = []
+    index = 0
+
+    while index < len(lines):
+        bounded_before = index == 0 or not lines[index - 1].strip()
+        first_owner = singleline._markdown_list_item_layout(lines[index])
+        if (
+            not bounded_before
+            or first_owner is None
+            or first_owner[2]
+            or first_owner[0] != 0
+        ):
+            output.append(lines[index])
+            index += 1
+            continue
+
+        owners = [lines[index]]
+        owner_content_indent = first_owner[1]
+        probe = index + 1
+
+        while probe < len(lines):
+            nested_owner = singleline._markdown_list_item_layout(
+                lines[probe],
+                allow_deep_indent=True,
+            )
+            if (
+                nested_owner is None
+                or nested_owner[2]
+                or nested_owner[0] != owner_content_indent
+            ):
+                break
+            owners.append(lines[probe])
+            owner_content_indent = nested_owner[1]
+            probe += 1
+
+        if probe >= len(lines):
+            output.append(lines[index])
+            index += 1
+            continue
+
+        first_quote = singleline._markdown_block_quote_layout(
+            lines[probe],
+            allow_deep_indent=True,
+        )
+        if first_quote is None or first_quote[0] != owner_content_indent:
+            output.append(lines[index])
+            index += 1
+            continue
+        quote_indent = first_quote[0]
+
+        groups: list[list[str]] = []
+        group_probe = probe
+        invalid = False
+        while group_probe < len(lines) and lines[group_probe].strip():
+            collected = _collect_bounded_parent_group(
+                lines,
+                group_probe,
+                quote_indent,
+            )
+            if collected is None:
+                invalid = True
+                break
+            group, next_probe = collected
+            groups.append(group)
+            group_probe = next_probe
+
+            if group_probe >= len(lines) or not lines[group_probe].strip():
+                break
+            if _quoted_parent_layout(lines[group_probe], quote_indent) is None:
+                invalid = True
+                break
+
+        bounded_after = group_probe == len(lines) or not lines[group_probe].strip()
+        if invalid or len(groups) < 2 or not bounded_after:
+            output.append(lines[index])
+            index += 1
+            continue
+
+        for group_number, group in enumerate(groups):
+            if group_number:
+                output.append("")
+            output.extend(owners)
+            output.extend(group)
+
+        index = group_probe
+
+    result = "\n".join(output)
+    if text.endswith(("\n", "\r")):
+        result += "\n"
+    return result
+
+
+def _authority_soft_wrapped_units(text: str) -> list[str]:
+    return _prior_authority_soft_wrapped_units(
+        _split_sibling_quoted_parents(text)
+    )
+
+
+def _control_one_parent() -> str:
+    return (
+        "- neutral outer\n"
+        "  > - neutral quoted parent A\n"
+        "  >   - This file\n"
+        "  >     ordinary continuation\n"
+        "  >   - grants release authority.\n"
+    )
+
+
+def _two_parent_finding() -> str:
+    return (
+        "- neutral outer\n"
+        "  > - neutral quoted parent A\n"
+        "  >   - This file\n"
+        "  >     ordinary continuation\n"
+        "  > - neutral quoted parent B\n"
+        "  >   - grants release authority.\n"
+    )
+
+
+def _check_f044_multiple_quoted_parents_regression() -> None:
+    control = _control_one_parent()
+    if _split_sibling_quoted_parents(control) != control:
+        raise core.VerificationError(
+            "F044 multiple-parent repair modified one-parent control"
+        )
+    core.validate_layer_b_non_authority_text("acceptance/inert.md", control)
+
+    finding = _two_parent_finding()
+    prior_units = _prior_authority_soft_wrapped_units(finding)
+    if not any(core.layer_b_self_promotion_claim(unit) for unit in prior_units):
+        raise core.VerificationError(
+            "F044 multiple-parent predecessor no longer reproduces parent-scope finding"
+        )
+
+    transformed = _split_sibling_quoted_parents(finding)
+    if transformed == finding:
+        raise core.VerificationError(
+            "F044 multiple-parent structural boundary did not transform reproduced finding"
+        )
+    transformed_units = _prior_authority_soft_wrapped_units(transformed)
+    if any(
+        "THIS FILE" in unit.upper()
+        and "GRANTS RELEASE AUTHORITY" in unit.upper()
+        for unit in transformed_units
+    ):
+        raise core.VerificationError(
+            "F044 multiple-parent boundary still fuses sibling parent scopes"
+        )
+    core.validate_layer_b_non_authority_text("acceptance/inert.md", finding)
+
+    outer_self_reference = finding.replace(
+        "- neutral outer\n",
+        "- This file\n",
+        1,
+    ).replace(
+        "  >   - This file\n",
+        "  >   - neutral child\n",
+        1,
+    )
+    core.expect_failure_message(
+        "F044 multiple-parent split preserves outer-owner self-promotion",
+        "publishes forbidden self-promotion",
+        lambda: core.validate_layer_b_non_authority_text(
+            "acceptance/inert.md", outer_self_reference
+        ),
+    )
+
+    same_parent_self_promotion = finding.replace(
+        "  >     ordinary continuation\n",
+        "  >     grants release authority.\n",
+        1,
+    ).replace(
+        "  >   - grants release authority.\n",
+        "  >   - neutral child B\n",
+        1,
+    )
+    core.expect_failure_message(
+        "F044 multiple-parent split preserves same-parent child self-promotion",
+        "publishes forbidden self-promotion",
+        lambda: core.validate_layer_b_non_authority_text(
+            "acceptance/inert.md", same_parent_self_promotion
+        ),
+    )
+
+    print("[PASS] F044 one-quoted-parent control remains GREEN")
+    print("[PASS] F044 multiple quoted parents parent-scope separation regression")
+    print("[PASS] F044 multiple-parent implementation is structural, not count-enumerated")
+
+
+def _synthetic_check_with_f044_multiple_quoted_parents() -> None:
+    _prior_synthetic_check()
+    _check_f044_multiple_quoted_parents_regression()
+
+
+core._authority_soft_wrapped_units = _authority_soft_wrapped_units
+core.check_synthetic_rejections_and_transition_positives = (
+    _synthetic_check_with_f044_multiple_quoted_parents
 )
 
-ROOT = Path(__file__).resolve().parents[1]
 
-REQUIRED_FILES = [
-    "README.md",
-    "PROJECT_STATE.md",
-    "HANDOFF.md",
-    "DECISION_LOG.md",
-    "IDEA_ARCHIVE.md",
-    "SOURCE_MANIFEST.md",
-    "RECONSTRUCTION_REPORT.md",
-    "SOURCE_AUDIT_SUMMARY.md",
-    "CODEX_START.md",
-    "continuity/COLD_START_AUDIT-001.md",
-    "analysis/RC1_V2_GAP_2026-08-10.md",
-    "evidence/PHASE6_CONTROLLED_WORKFLOW_PROOF_2026-08-10.md",
-    "evidence/P3_REAL_WORKLOAD_003_SCENE12_27_2026-08-19.md",
-    "evidence/P3_SCENE12_27_HUMAN_SEMANTIC_ACCEPTANCE_AND_CANONICAL_EFFECT_PREVIEW_2026-08-21.md",
-    "scripts/restore_v2.py",
-    "legacy/scriptops-v2-single.py",
-    "phase6/scriptops-v2-hardening.py",
-    "phase6/bounded-proposal-view.py",
-    "tests/test_phase6_scriptops_smoke.py",
-    "tests/test_phase6_review_task_identity.py",
-    "tests/test_phase6_bounded_proposal_view.py",
-    "tests/test_phase6_p3_real_workload_003.py",
-    "tests/test_phase6_p3_evidence_record_003.py",
-    ".github/workflows/phase6-scriptops-smoke.yml",
-    ".github/pull_request_template.md",
-    "sources/Decision_Summary_Current_State.md",
-    "sources/ScriptOps_Main_Theme_Summary.md",
-    "sources/RC1_SCOPE_LOCK.md",
-    "sources/prototype/RESTORE.md",
-]
-
-PROTOTYPE_PARTS = [f"sources/prototype/scriptops-v2-single.py.part{i:02d}" for i in range(1, 8)]
-
-
-def fail(message: str) -> None:
-    print(f"[FAIL] {message}", file=sys.stderr)
-    raise SystemExit(1)
-
-
-def read_text(relative_path: str) -> str:
-    try:
-        return (ROOT / relative_path).read_text(encoding="utf-8")
-    except UnicodeDecodeError as exc:
-        fail(f"{relative_path} nie jest poprawnym UTF-8: {exc}")
-    raise AssertionError("unreachable")
-
-
-def require_markers(relative_path: str, markers: list[str]) -> None:
-    text = read_text(relative_path)
-    for marker in markers:
-        if marker not in text:
-            fail(f"{relative_path} nie zawiera wymaganego wpisu: {marker}")
-
-
-def forbid_markers(relative_path: str, markers: list[str]) -> None:
-    text = read_text(relative_path)
-    for marker in markers:
-        if marker in text:
-            fail(f"{relative_path} nadal zawiera stale current-state marker: {marker}")
-
-
-def check_required_files() -> None:
-    missing = [p for p in REQUIRED_FILES + PROTOTYPE_PARTS if not (ROOT / p).is_file()]
-    if missing:
-        fail("brak wymaganych plików: " + ", ".join(missing))
-    print(f"[PASS] wymagane pliki: {len(REQUIRED_FILES) + len(PROTOTYPE_PARTS)}")
-
-
-def check_status_consistency() -> None:
-    require_markers(
-        "PROJECT_STATE.md",
-        [
-            "PHASE 6 CONTROLLED WORKFLOW MECHANISM PASS / BOUNDED PROPOSAL VIEW INTEGRATED / P3 RUN003 OBSERVED PASS / SCN-012+027 HUMAN SEMANTIC ACCEPTED / CANONICAL EFFECT PREPARED NOT APPLIED / GOAL DONE NO / NO MATURITY CLAIM",
-            "legacy/scriptops-v2-single.py",
-            "REWRITE: NO",
-            "NEW CAPABILITY: NO",
-            "MINIMALNY BOUNDED PROPOSAL VIEW DLA CROSS-SCENE COHERENCE",
-            "BEZ ATOMIC APPROVAL",
-            "DEC-SO-011",
-            "Human semantic acceptance proposal state SCN-012/SCN-027 jest ustanowiona przez DEC-SO-011",
-            "brak canonical effect dla tych rewrite'ów",
-            "Późniejsze `FUNCTIONAL_SADDLE_ACCEPTED` jest zaakceptowanym faktem repo Saddle",
-            "evidence/PHASE6_CONTROLLED_WORKFLOW_PROOF_2026-08-10.md",
-            "evidence/P3_REAL_WORKLOAD_003_SCENE12_27_2026-08-19.md",
-            "evidence/P3_SCENE12_27_HUMAN_SEMANTIC_ACCEPTANCE_AND_CANONICAL_EFFECT_PREVIEW_2026-08-21.md",
-            "phase6/bounded-proposal-view.py",
-            "### Phase-6 proof — PR #7",
-            "### Bounded proposal view — PR #14",
-            "### P3 Real Workload 003 — PR #16",
-            "CANONICAL_EFFECT_PREPARED / WAITING_FOR_SEPARATE_HUMAN_EFFECT_GATE",
-            "GOAL_DONE: NO",
-        ],
-    )
-    require_markers(
-        "README.md",
-        [
-            "PHASE 6 CONTROLLED WORKFLOW MECHANISM PASS / BOUNDED PROPOSAL VIEW INTEGRATED / P3 RUN003 OBSERVED PASS / SCN-012+027 HUMAN SEMANTIC ACCEPTED / CANONICAL EFFECT PREPARED NOT APPLIED / GOAL DONE NO / NO MATURITY CLAIM",
-            "CANONICAL_EFFECT_PREPARED / WAITING_FOR_SEPARATE_HUMAN_EFFECT_GATE",
-            "DEC-SO-011",
-            "phase6/scriptops-v2-hardening.py",
-            "PR #7 został zweryfikowany i scalony",
-            "`MATURITY CLAIM`: **NONE**",
-        ],
-    )
-    require_markers(
-        "HANDOFF.md",
-        [
-            'activation: "BOUNDED PHASE 6 PROOF COMPLETE / BOUNDED PROPOSAL VIEW INTEGRATED"',
-            'blocker: "WAITING FOR SEPARATE HUMAN CANONICAL EFFECT GATE"',
-            'next_step: "present_exact_target_canon_and_effect_identity_for_human_gate"',
-            'resume_contract: "REUSE V2 / BOUNDED PROPOSAL VIEW / NO ATOMIC APPROVAL / NO MATURITY CLAIM"',
-            "DEC-SO-010",
-            "DEC-SO-011",
-            "PR #14",
-            "PR #16",
-            "CROSS_SCENE_PROPOSAL_COHERENCE: OBSERVED PASS",
-            "CANONICAL_EFFECT_PREPARED / WAITING_FOR_SEPARATE_HUMAN_EFFECT_GATE",
-            "GOAL_DONE: NO",
-        ],
-    )
-
-    # Historical text may still name old gates, but startup/current-state language
-    # must not present already-closed gates or executed evaluation items as current.
-    forbid_markers(
-        "PROJECT_STATE.md",
-        [
-            'status: "PHASE 6 CONTROLLED WORKFLOW MECHANISM PASS / NO MATURITY CLAIM / SADDLE LIVE MODEL EVIDENCE NEXT"',
-            "FUNCTIONAL_SADDLE_ACCEPTED: NOT YET",
-            "Po zielonym finalnym headzie i merge PR #7",
-        ],
-    )
-    forbid_markers(
-        "README.md",
-        [
-            "`FUNCTIONAL_SADDLE_ACCEPTED`: **NOT YET**",
-            "Po merge Phase 6 wynik wraca do Saddle.",
-            "Następnym brakującym dowodem jest live AI-worker benchmark/effect path",
-            "Najbliższa praca ekosystemowa może użyć **istniejącego** mechanizmu Phase 6 w jednym materially-different bounded workload.",
-            "WAITING_FOR_EVIDENCE / HUMAN_SEMANTIC_DECISION",
-        ],
-    )
-    forbid_markers(
-        "HANDOFF.md",
-        [
-            'blocker: "FINAL PR HEAD MUST REMAIN GREEN BEFORE MERGE"',
-            'blocker: "NO CURRENT LOCAL PRODUCT BLOCKER"',
-            'blocker: "WAITING FOR AUTHORITATIVE DOWNSTREAM EVIDENCE OR HUMAN SEMANTIC DECISION"',
-            'next_step: "merge_phase6_then_return_to_saddle_live_model_evidence"',
-            'next_step: "bounded_materially_different_evaluation_using_existing_phase6_mechanism"',
-            'next_step: "human_owned_next_input_for_scene12_27_goal"',
-            "`FUNCTIONAL_SADDLE_ACCEPTED`: `NOT YET`",
-        ],
-    )
-
-    print("[PASS] current README/state/handoff są pogodzone po DEC-SO-011 bez canonical effect")
-
-
-def check_startup_semantic_freshness() -> None:
-    require_markers(
-        "README.md",
-        [
-            "Historyczny `materially-different bounded workload` został wykonany przez Real Workloads 001–003.",
-            "**Nie jest już current NEXT.**",
-            "Human semantic decision dla `SCN-012 + SCN-027` również jest zamknięta.",
-            "`CODEX_START.md` oraz `analysis/RC1_V2_GAP_2026-08-10.md` pozostają historycznym RC1/planning provenance.",
-        ],
-    )
-    require_markers(
-        "CODEX_START.md",
-        [
-            "HISTORICAL / SUPERSEDED RC1 PLANNING BOOTSTRAP / NOT CURRENT ROUTE",
-            "current_recovery_entry: \"README.md -> PROJECT_STATE.md -> HANDOFF.md\"",
-            "CANONICAL_EFFECT_PREPARED / WAITING_FOR_SEPARATE_HUMAN_EFFECT_GATE",
-            "The Human semantic decision for `SCN-012 + SCN-027` is already closed",
-            "No RC1 implementation, rewrite, new capability or new product phase is authorized by this file.",
-        ],
-    )
-    print("[PASS] startup semantic freshness: accepted semantic decision, historical RC1 route and closed Saddle gate cannot be recovered as current work")
-
-
-def check_decision_and_scope() -> None:
-    decisions = read_text("DECISION_LOG.md")
-    for marker in [
-        "DEC-SO-001",
-        "DEC-SO-009",
-        "DEC-SO-010",
-        "DEC-SO-011",
-        "BASE: legacy/scriptops-v2-single.py",
-        "REWRITE: NO",
-        "NEW CAPABILITY: NO",
-        "MATURITY CLAIM: NONE",
-        "FUNCTIONAL_SADDLE_ACCEPTED: NOT YET",
-    ]:
-        if marker not in decisions:
-            fail(f"DECISION_LOG.md nie zawiera historycznego wpisu: {marker}")
-
-    scope = read_text("sources/RC1_SCOPE_LOCK.md")
-    for phrase in [
-        "browser helper",
-        "direct API calls",
-        "autonomous writing",
-        "multi-user",
-        "AI Guard",
-        "Retcon Engine",
-        "cloud sync",
-    ]:
-        if phrase not in scope:
-            fail(f"RC1_SCOPE_LOCK.md nie zawiera wykluczenia: {phrase}")
-    print("[PASS] historyczna decyzja bazowa i scope lock są zachowane bez relabelowania ich jako current")
-
-
-def check_source_paths() -> None:
-    state = read_text("PROJECT_STATE.md")
-    manifest = read_text("SOURCE_MANIFEST.md")
-    for reference in [
-        "sources/Decision_Summary_Current_State.md",
-        "sources/ScriptOps_Main_Theme_Summary.md",
-        "sources/RC1_SCOPE_LOCK.md",
-        "legacy/scriptops-v2-single.py",
-        "analysis/RC1_V2_GAP_2026-08-10.md",
-        "phase6/bounded-proposal-view.py",
-        "evidence/P3_REAL_WORKLOAD_003_SCENE12_27_2026-08-19.md",
-        "evidence/P3_SCENE12_27_HUMAN_SEMANTIC_ACCEPTANCE_AND_CANONICAL_EFFECT_PREVIEW_2026-08-21.md",
-    ]:
-        if reference not in state:
-            fail(f"PROJECT_STATE.md nie wskazuje źródła: {reference}")
-    for reference in ["legacy/scriptops-v2-single.py", "sources/RC1_SCOPE_LOCK.md"]:
-        if reference not in manifest:
-            fail(f"SOURCE_MANIFEST.md nie wskazuje aktywnego źródła: {reference}")
-    print("[PASS] current state wskazuje bazowe, Run003 i DEC-SO-011 źródła; transport/history files pozostają REQUIRED")
-
-
-def check_prototype() -> None:
-    try:
-        canonical = CANONICAL_FILE.read_bytes()
-        canonical_sha = validate_content(canonical)
-        reconstructed = reconstruct_bytes()
-        reconstructed_sha = validate_content(reconstructed)
-    except (OSError, RestoreError) as exc:
-        fail(f"kontrola prototypu nie powiodła się: {exc}")
-
-    if canonical != reconstructed:
-        fail("historyczny v2 nie jest identyczny z częściami transportowymi")
-    if canonical_sha != EXPECTED_SHA256 or reconstructed_sha != EXPECTED_SHA256:
-        fail("historyczny v2 ma nieoczekiwaną sumę SHA-256")
-    if len(canonical) != EXPECTED_SIZE:
-        fail(f"rozmiar v2 niezgodny: expected={EXPECTED_SIZE}, actual={len(canonical)}")
-    if hashlib.sha256(canonical).hexdigest() != EXPECTED_SHA256:
-        fail("kanoniczny historyczny plik v2 ma niezgodną sumę")
-    print(f"[PASS] historyczny v2 niezmieniony: {EXPECTED_SIZE} B, SHA-256 {canonical_sha}")
-
-
-def check_phase6_proof_contract() -> None:
-    hardening = read_text("phase6/scriptops-v2-hardening.py")
-    test = read_text("tests/test_phase6_scriptops_smoke.py")
-    evidence = read_text("evidence/PHASE6_CONTROLLED_WORKFLOW_PROOF_2026-08-10.md")
-    for marker in [
-        "LEGACY_PATH",
-        "legacy = _load_legacy()",
-        "checkpoint task",
-        "record preflight",
-        "record context",
-        "record candidate input",
-        "impact-report.json",
-        "approve --why",
-        "write_scene_file",
-        '"why": why',
-    ]:
-        if marker not in hardening:
-            fail(f"Phase-6 hardening nie zawiera: {marker}")
-    for marker in [
-        "test_full_controlled_happy_path",
-        "test_approve_requires_explicit_why",
-        "test_candidate_import_refuses_unrelated_dirty_state",
-        "accepted scene hash must describe accepted content",
-    ]:
-        if marker not in test:
-            fail(f"Phase-6 smoke nie zawiera: {marker}")
-    for marker in [
-        "CONTROLLED WORKFLOW MECHANISM PASS / NO MATURITY CLAIM",
-        "31421551632",
-        "31421551982",
-        "FUNCTIONAL_SADDLE_ACCEPTED",
-    ]:
-        if marker not in evidence:
-            fail(f"Phase-6 evidence nie zawiera: {marker}")
-    print("[PASS] bounded hardening B1–B5, smoke i historyczny evidence contract są obecne")
-
-
-def check_bounded_proposal_contract() -> None:
-    helper = read_text("phase6/bounded-proposal-view.py")
-    test = read_text("tests/test_phase6_bounded_proposal_view.py")
-    run003 = read_text("tests/test_phase6_p3_real_workload_003.py")
-    evidence = read_text("evidence/P3_REAL_WORKLOAD_003_SCENE12_27_2026-08-19.md")
-
-    for marker in [
-        "Explicit task-bounded proposal view",
-        "proposal_bindings",
-        "file_sha256",
-        "BOUNDED_NONCANONICAL",
-        "PROPOSAL_NOT_CANON",
-        "proposal binding SHA mismatch",
-        "bounded proposal view requires at least one explicit proposal binding",
-        "Canonical scenes were not modified",
-    ]:
-        if marker not in helper:
-            fail(f"bounded proposal helper nie zawiera: {marker}")
-
-    for marker in [
-        "test_exact_binding_builds_context_from_staged_upstream_proposal",
-        "test_binding_fails_closed_if_candidate_identity_drifts",
-        "test_bounded_context_requires_explicit_binding",
-        "UNBOUND_GLOBAL_PRECEDENCE=NO",
-        "ATOMIC_APPROVAL=NOT_ADDED",
-    ]:
-        if marker not in test:
-            fail(f"bounded proposal regression nie zawiera: {marker}")
-
-    for marker in [
-        "test_bounded_view_supports_coherent_two_scene_proposal_without_canonical_effect",
-        "CROSS_SCENE_PROPOSAL_COHERENCE=OBSERVED_PASS",
-        "CANONICAL_EFFECT=NOT_APPLIED",
-        "HUMAN_APPROVAL=NOT_REQUESTED",
-        "GOAL_DONE=NO",
-    ]:
-        if marker not in run003:
-            fail(f"P3 Run 003 test nie zawiera: {marker}")
-
-    for marker in [
-        "P3_REAL_WORKLOAD_003",
-        "CROSS_SCENE_PROPOSAL_COHERENCE=OBSERVED_PASS",
-        "CANONICAL EFFECT: NOT APPLIED",
-        "HUMAN APPROVAL: NOT REQUESTED",
-        "GOAL DONE: NO",
-    ]:
-        if marker not in evidence:
-            fail(f"P3 Run 003 evidence nie zawiera: {marker}")
-
-    print("[PASS] bounded proposal view i Run 003 są source-bound, fail-closed i bez canonical promotion")
-
-
-def check_ideas_and_filters() -> None:
-    ideas = read_text("IDEA_ARCHIVE.md")
-    if ideas.count("## IDEA-SO-") < 12:
-        fail("IDEA_ARCHIVE.md nie zawiera pełnego zestawu zabezpieczonych kierunków")
-    template = read_text(".github/pull_request_template.md")
-    for marker in [
-        "Problem / porażka",
-        "Dlaczego obecny mechanizm nie wystarcza",
-        "Obserwowalny dowód zaliczenia",
-        "Dodany koszt utrzymania",
-        "Poza zakresem",
-        "Decyzja semantyczna",
-    ]:
-        if marker not in template:
-            fail(f"szablon PR nie zawiera filtra: {marker}")
-    print("[PASS] parking pomysłów i filtr PR są zachowane")
-
-
-def check_continuity_audit() -> None:
-    require_markers(
-        "continuity/COLD_START_AUDIT-001.md",
-        [
-            "PUBLIC / NO PRIOR MEMORY / READ_ONLY",
-            "PASS WITH FIXES",
-            "Wznowienie ScriptOps — PASS",
-            "scripts/restore_v2.py",
-        ],
-    )
-    print("[PASS] historyczny cold-start evidence pozostaje osiągalny")
-
-
-def main() -> None:
-    check_required_files()
-    check_status_consistency()
-    check_startup_semantic_freshness()
-    check_decision_and_scope()
-    check_source_paths()
-    check_prototype()
-    check_phase6_proof_contract()
-    check_bounded_proposal_contract()
-    check_ideas_and_filters()
-    check_continuity_audit()
-    print("[PASS] repozytorium jest samowystarczalne po DEC-SO-011 semantic-currentness reconciliation; Phase 6 baseline i authority boundaries pozostają zachowane")
+def main() -> int:
+    actual = core.git_blob_sha1(Path(prior.__file__))
+    if actual != PRIOR_DEPTH_GENERIC_BLOB_SHA:
+        print(
+            "[FAIL] prior depth-generic F044 verifier drift: "
+            f"expected={PRIOR_DEPTH_GENERIC_BLOB_SHA} actual={actual}",
+            file=core.sys.stderr,
+        )
+        return 1
+    return prior.main()
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

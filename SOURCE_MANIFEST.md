@@ -1,80 +1,104 @@
 # SOURCE_MANIFEST
 
-Repo zawiera minimalny pakiet potrzebny do wznowienia i kontynuacji pracy bez dostępu do wcześniejszego czatu.
+> X1B AUTHORITY FENCE — `HISTORICAL_RECONSTRUCTION_PROVENANCE_ONLY`
+>
+> This manifest describes source provenance and recovery material. It is not current X1B state authority. Labels such as `canonical`, `current`, `operational`, `scope lock`, or `decision summary` in historical source names do not override the current bootstrap registry.
+>
+> `SOURCE_MANIFEST CANONICAL LABEL != CURRENT X1B AUTHORITY`
 
-## Kanoniczne źródła operacyjne
+## Current authority boundary
 
-- `README.md` — kolejność uruchomienia nowej sesji;
-- `PROJECT_STATE.md` — aktualny stan projektu;
-- `HANDOFF.md` — punkt wznowienia i `ACCESS CHECK` wraz z maszynowym nagłówkiem;
-- `DECISION_LOG.md` — wyłącznie decyzje semantyczne;
-- `IDEA_ARCHIVE.md` — zachowane pomysły i warunki powrotu;
-- `CODEX_START.md` — niezależny prompt etapu planowania RC1;
-- `RECONSTRUCTION_REPORT.md` — zrekonstruowana historia, dowody i miejsce zatrzymania;
-- `SOURCE_AUDIT_SUMMARY.md` — podsumowanie pełnej inwentaryzacji 2016 rekordów;
-- `continuity/COLD_START_AUDIT-001.md` — niezależny test wznowienia bez pamięci rozmowy.
+Current X1B recovery authority is exactly:
 
-## Zachowane źródła produktowe
+```text
+README.md -> PROJECT_STATE.md -> HANDOFF.md
+```
 
-- `sources/Decision_Summary_Current_State.md` — aktualne podsumowanie decyzji produktu;
-- `sources/ScriptOps_Main_Theme_Summary.md` — główna definicja i prawo produktu;
-- `sources/RC1_SCOPE_LOCK.md` — obowiązująca blokada zakresu RC1;
-- `legacy/scriptops-v2-single.py` — pojedyncza kanoniczna kopia historycznego prototypu v2;
-- `sources/prototype/` — siedem części transportowych, instrukcja awaryjnego odtworzenia i dowód odtwarzalności.
+Those three files must agree on:
 
-Historyczne ścieżki z `ScriptOps_FINAL_MASTER_PACKAGE` są informacją o pochodzeniu. Aktywne, odczytywalne kopie wymagane do wznowienia znajdują się pod ścieżkami wymienionymi wyżej.
+```text
+X1B_ACTIVE_PRODUCT_REMEDIATION_ASSERTION: CURRENTNESS_UNESTABLISHED
+X1B_AUTHORITY_MODEL: TWO_LAYER_CLOSED_WORLD_V1
+```
 
-## Integralność prototypu
+Everything listed below is supporting provenance unless it is one of those three current-bootstrap documents.
 
-Kanoniczny plik:
+## Layer-A registry roles
+
+Current bootstrap authority:
+
+- `README.md`
+- `PROJECT_STATE.md`
+- `HANDOFF.md`
+
+Decision provenance only:
+
+- `DECISION_LOG.md`
+
+Historical reconstruction provenance only:
+
+- `SOURCE_MANIFEST.md`
+- `SOURCES.md`
+- `SOURCE_AUDIT_SUMMARY.md`
+- `RECONSTRUCTION_REPORT.md`
+
+Historical product-governance provenance only:
+
+- `sources/Decision_Summary_Current_State.md`
+- `sources/RC1_SCOPE_LOCK.md`
+- `sources/ScriptOps_Main_Theme_Summary.md`
+
+Pre-fenced non-authority provenance:
+
+- `CODEX_START.md`
+- `IDEA_ARCHIVE.md`
+
+## Layer-B path-class provenance
+
+Nested/supporting Markdown is outside the 13-member Layer-A registry. Known path classes are denied current X1B authority by location, including:
+
+```text
+analysis/
+continuity/
+evidence/
+acceptance/
+sources/prototype/
+legacy/
+phase6/
+tests/
+.github/
+scripts/
+```
+
+`PATH-CLASS DENIAL != REGISTRY MEMBERSHIP`.
+
+`sources/prototype/RESTORE.md` remains historical prototype reconstruction context. It contributes zero members to the Layer-A registry census.
+
+## Historical source package
+
+The repository retains historical material for reconstruction and audit, including:
+
+- ScriptOps Final Master Package lineage;
+- broad v5 specification provenance;
+- `legacy/scriptops-v2-single.py` as the preserved v2 implementation artifact;
+- Mądry Warsztat / S2 Studio material;
+- RC1 scope and historical decision records;
+- Phase-6 evidence;
+- bounded proposal and Real Workload evidence;
+- continuity/audit material.
+
+The historical v2 canonical implementation artifact remains:
 
 ```text
 legacy/scriptops-v2-single.py
 SHA-256: 881dade6c6c506b9a9d41ebfbf68afb18b66db7583d35f746fb29ed7b36ac596
-Rozmiar: 51980 B
+Size: 51980 B
 ```
 
-Kontrola:
+Transport reconstruction material remains under `sources/prototype/` and is provenance only.
 
-```bash
-python scripts/verify_repository.py
-```
+## Completeness boundary
 
-Awaryjne odtworzenie kanonicznego pliku z części transportowych:
+This manifest does not assert active-product remediation, deployment, release, merge authority, current remote-main identity, X1B HumanDecision admission or V1 authority.
 
-```bash
-python scripts/restore_v2.py --force
-```
-
-Instrukcja alternatywna: `sources/prototype/RESTORE.md`.
-
-## Pochodzenie
-
-Rekonstrukcja została wykonana na podstawie minimalnego pakietu READ_ONLY obejmującego:
-
-- ScriptOps Final Master Package;
-- szeroką specyfikację v5;
-- prototyp v2;
-- materiały Mądrego Warsztatu / S2 Studio;
-- decyzje B4, B5 i Aneks;
-- dwa audyty przejścia;
-- pełny indeks 2016 logicznych rekordów i 702 plików fizycznych.
-
-Repo przechowuje wszystkie informacje wymagane do poprawnego wznowienia: stan, decyzje, zakres, dowody, pomysły, punkt zatrzymania, plan następnego kroku oraz kod prototypu.
-
-## Granica kompletności
-
-Zabezpieczono:
-
-- tożsamość i historię projektu;
-- najpóźniejszy udokumentowany zakres produktu;
-- zakres i wykluczenia RC1;
-- instrukcję rozpoczęcia pracy z Codex;
-- wcześniejszy kod;
-- kluczowe decyzje użytkownika;
-- pomysły post-MVP z warunkami powrotu;
-- dowody działania poprzednich procesów;
-- główne sprzeczności i braki źródłowe;
-- wynik niezależnego testu ciągłości.
-
-Nie istnieje dostępny dowód późniejszej implementacji lub odpowiedzi Codex powstałej po Final Master Package. Ta niewiedza nie została ukryta; pozostaje aktywną blokadą `ACCESS CHECK REQUIRED`.
+A future active-product assertion requires external currentness evidence and separate Human acceptance; it cannot be recovered from this manifest.
