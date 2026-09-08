@@ -1,27 +1,25 @@
 #!/usr/bin/env python3
-"""Bounded F044-D25 list-owned post-target sibling-cardinality overlay.
+"""Bounded F044-D24 list-owned later-child-position overlay.
 
-The repaired F044-D24 verifier is retained byte-for-byte at
-`scripts/verify_repository_f044d24_list_owned_later_child_position.py` and
-pinned by Git blob SHA. D25 lifts exactly the already-repaired D14
-post-target-cardinality dimension into the existing source-column-zero
-outer-list-owned quote family: a quoted parent list item, at least two one-line
-preceding children, one target child at position three or later with one-or-more
-ordinary continuation lines, and a bounded run of at least two consecutive
-post-target siblings at the same child-marker indentation.
+The repaired F044-D23 verifier is retained byte-for-byte at
+`scripts/verify_repository_f044d23_list_owned_later_child_continuation.py` and
+pinned by Git blob SHA. D24 lifts exactly the already-repaired D13 position
+dimension into the existing source-column-zero outer-list-owned quote family:
+a quoted parent list item, at least two one-line preceding children, one target
+child at position three or later with one-or-more ordinary continuation lines,
+and exactly one final sibling at the same child-marker indentation.
 
-Exactly one post-target sibling remains delegated to D24. Child-two target
-continuation remains delegated to D23. Continuation in preceding/post-target
-children, deeper nesting, block transitions, multiple quoted parents,
-outer-list siblings, nested outer lists and further list-owned quote recursion
-remain outside this patch.
+Child-two target continuation remains delegated to D23. Continuation in
+preceding/final children, multiple siblings after the target, deeper nesting,
+block transitions, multiple quoted parents, outer-list siblings, nested outer
+lists and further list-owned quote recursion remain outside this patch.
 """
 from __future__ import annotations
 
 from pathlib import Path
-import verify_repository_f044d24_list_owned_later_child_position as prior
+import verify_repository_f044d23_list_owned_later_child_continuation as prior
 
-PRIOR_F044D24_BLOB_SHA = "e3062750190721451548f241a8ae91acad6e6770"
+PRIOR_F044D23_BLOB_SHA = "595b0e461261fb56710a9e48c6865da61ef3177f"
 
 core = prior.core
 singleline = prior.singleline
@@ -29,14 +27,14 @@ _prior_authority_soft_wrapped_units = core._authority_soft_wrapped_units
 _prior_synthetic_check = core.check_synthetic_rejections_and_transition_positives
 
 
-def _split_list_owned_post_target_cardinality(text: str) -> str:
-    """Normalize outer-list -> quote parent -> target+run -> >=2 later siblings."""
+def _split_list_owned_later_child_position(text: str) -> str:
+    """Normalize outer-list -> quote parent -> >=2 children -> target+run -> final."""
     lines = text.splitlines()
     output: list[str] = []
     index = 0
 
     while index < len(lines):
-        if index + 7 >= len(lines):
+        if index + 6 >= len(lines):
             output.append(lines[index])
             index += 1
             continue
@@ -95,6 +93,7 @@ def _split_list_owned_post_target_cardinality(text: str) -> str:
         target_index = child_indexes[-1]
         target_content_indent = child_content_indents[-1]
         continuation_indexes: list[int] = []
+        final_sibling_index: int | None = None
 
         while probe < len(lines) and lines[probe].strip():
             qlayout = singleline._markdown_block_quote_layout(
@@ -104,9 +103,16 @@ def _split_list_owned_post_target_cardinality(text: str) -> str:
                 break
             content = qlayout[1]
 
-            if singleline._markdown_list_item_layout(
+            any_list = singleline._markdown_list_item_layout(
                 content, allow_deep_indent=True
-            ) is not None:
+            )
+            if any_list is not None:
+                if (
+                    continuation_indexes
+                    and not any_list[2]
+                    and any_list[0] == parent_content_indent
+                ):
+                    final_sibling_index = probe
                 break
 
             relative = singleline._markdown_remove_leading_columns(
@@ -121,30 +127,14 @@ def _split_list_owned_post_target_cardinality(text: str) -> str:
             continuation_indexes.append(probe)
             probe += 1
 
-        if not continuation_indexes:
+        if final_sibling_index is None:
             output.append(lines[index]); index += 1; continue
 
-        post_target_indexes: list[int] = []
-        while probe < len(lines) and lines[probe].strip():
-            qlayout = singleline._markdown_block_quote_layout(
-                lines[probe], allow_deep_indent=True
-            )
-            if qlayout is None or qlayout[0] != quote_indent:
-                break
-            layout = singleline._markdown_list_item_layout(
-                qlayout[1], allow_deep_indent=True
-            )
-            if (
-                layout is None
-                or layout[2]
-                or layout[0] != parent_content_indent
-            ):
-                break
-            post_target_indexes.append(probe)
-            probe += 1
-
-        bounded_after = probe == len(lines) or not lines[probe].strip()
-        if len(post_target_indexes) < 2 or not bounded_after:
+        bounded_after = (
+            final_sibling_index + 1 == len(lines)
+            or not lines[final_sibling_index + 1].strip()
+        )
+        if not bounded_after:
             output.append(lines[index]); index += 1; continue
 
         for child_index in child_indexes[:-1]:
@@ -153,10 +143,9 @@ def _split_list_owned_post_target_cardinality(text: str) -> str:
 
         output.extend([outer_raw, quote_parent_raw, lines[target_index]])
         output.extend(lines[pos] for pos in continuation_indexes)
-        for sibling_index in post_target_indexes:
-            output.append("")
-            output.extend([outer_raw, quote_parent_raw, lines[sibling_index]])
-        index = probe
+        output.append("")
+        output.extend([outer_raw, quote_parent_raw, lines[final_sibling_index]])
+        index = final_sibling_index + 1
 
     result = "\n".join(output)
     if text.endswith(("\n", "\r")):
@@ -166,11 +155,11 @@ def _split_list_owned_post_target_cardinality(text: str) -> str:
 
 def _authority_soft_wrapped_units(text: str) -> list[str]:
     return _prior_authority_soft_wrapped_units(
-        _split_list_owned_post_target_cardinality(text)
+        _split_list_owned_later_child_position(text)
     )
 
 
-def _check_f044d25_list_owned_post_target_cardinality_regression() -> None:
+def _check_f044d24_list_owned_later_child_position_regression() -> None:
     representative = (
         "- Parent:\n"
         "  > - neutral quoted parent\n"
@@ -179,30 +168,15 @@ def _check_f044d25_list_owned_post_target_cardinality_regression() -> None:
         "  >   - This file\n"
         "  >     target continuation\n"
         "  >   - grants release authority.\n"
-        "  >   - neutral later sibling\n"
     )
     prior_units = _prior_authority_soft_wrapped_units(representative)
     if not any(core.layer_b_self_promotion_claim(unit) for unit in prior_units):
         raise core.VerificationError(
-            "F044-D25 predecessor no longer reproduces list-owned post-target-cardinality finding"
+            "F044-D24 predecessor no longer reproduces list-owned later-position finding"
         )
     core.validate_layer_b_non_authority_text("acceptance/inert.md", representative)
 
-    # Three post-target siblings are the same D14 cardinality dimension.
-    core.validate_layer_b_non_authority_text(
-        "acceptance/inert.md",
-        "- Parent:\n"
-        "  > - neutral quoted parent\n"
-        "  >   - child one\n"
-        "  >   - child two\n"
-        "  >   - This file\n"
-        "  >     target continuation\n"
-        "  >   - grants release authority.\n"
-        "  >   - neutral sibling five\n"
-        "  >   - neutral sibling six\n",
-    )
-
-    # Later target position and longer continuation remain proven dimensions.
+    # Target child position four is the same proven D13 position dimension.
     core.validate_layer_b_non_authority_text(
         "acceptance/inert.md",
         "- Parent:\n"
@@ -211,14 +185,25 @@ def _check_f044d25_list_owned_post_target_cardinality_regression() -> None:
         "  >   - child two\n"
         "  >   - child three\n"
         "  >   - This file\n"
+        "  >     target continuation\n"
+        "  >   - grants release authority.\n",
+    )
+
+    # Continuation-run length remains a previously proven dimension.
+    core.validate_layer_b_non_authority_text(
+        "acceptance/inert.md",
+        "- Parent:\n"
+        "  > - neutral quoted parent\n"
+        "  >   - child one\n"
+        "  >   - child two\n"
+        "  >   - This file\n"
         "  >     continuation one\n"
         "  >     continuation two\n"
-        "  >   - grants release authority.\n"
-        "  >   - neutral later sibling\n",
+        "  >   - grants release authority.\n",
     )
 
     core.expect_failure_message(
-        "F044-D25 last post-target sibling inherits outer-list self-reference",
+        "F044-D24 final sibling inherits outer-list self-reference",
         "publishes forbidden self-promotion",
         lambda: core.validate_layer_b_non_authority_text(
             "acceptance/inert.md",
@@ -226,14 +211,13 @@ def _check_f044d25_list_owned_post_target_cardinality_regression() -> None:
             "  > - neutral quoted parent\n"
             "  >   - child one\n"
             "  >   - child two\n"
-            "  >   - target child\n"
-            "  >     target continuation\n"
-            "  >   - neutral post-target sibling\n"
+            "  >   - child three\n"
+            "  >     ordinary continuation\n"
             "  >   - grants release authority.\n",
         ),
     )
     core.expect_failure_message(
-        "F044-D25 last post-target sibling inherits quoted-parent self-reference",
+        "F044-D24 final sibling inherits quoted-parent self-reference",
         "publishes forbidden self-promotion",
         lambda: core.validate_layer_b_non_authority_text(
             "acceptance/inert.md",
@@ -241,41 +225,38 @@ def _check_f044d25_list_owned_post_target_cardinality_regression() -> None:
             "  > - This file\n"
             "  >   - child one\n"
             "  >   - child two\n"
-            "  >   - target child\n"
-            "  >     target continuation\n"
-            "  >   - neutral post-target sibling\n"
+            "  >   - child three\n"
+            "  >     ordinary continuation\n"
             "  >   - grants release authority.\n",
         ),
     )
 
-    # Target-local self-reference must not leak into post-target siblings.
+    # Child-local self-reference does not leak to the final sibling.
     core.validate_layer_b_non_authority_text(
         "acceptance/inert.md",
         "- neutral outer\n"
         "  > - neutral quoted parent\n"
-        "  >   - child one\n"
-        "  >   - child two\n"
         "  >   - This file\n"
-        "  >     target continuation\n"
-        "  >   - neutral post-target sibling\n"
+        "  >   - child two\n"
+        "  >   - child three\n"
+        "  >     ordinary continuation\n"
         "  >   - grants release authority.\n",
     )
 
-    # Exactly one post-target sibling remains delegated to D24.
-    delegated_d24 = (
+    # Child-two target remains delegated to D23 and must not be rewritten here.
+    delegated_d23 = (
         "- Parent:\n"
         "  > - neutral quoted parent\n"
         "  >   - child one\n"
-        "  >   - child two\n"
         "  >   - This file\n"
-        "  >     target continuation\n"
+        "  >     child two continuation\n"
         "  >   - grants release authority.\n"
     )
-    if _split_list_owned_post_target_cardinality(delegated_d24) != delegated_d24:
-        raise core.VerificationError("F044-D25 escaped into D24 one-sibling scope")
-    core.validate_layer_b_non_authority_text("acceptance/inert.md", delegated_d24)
+    if _split_list_owned_later_child_position(delegated_d23) != delegated_d23:
+        raise core.VerificationError("F044-D24 escaped into D23 child-two scope")
+    core.validate_layer_b_non_authority_text("acceptance/inert.md", delegated_d23)
 
-    # Adjacent families remain explicitly outside this cardinality-only lift.
+    # Adjacent structures remain outside this position-only lift.
     for untouched in [
         (
             "- Parent:\n"
@@ -285,18 +266,6 @@ def _check_f044d25_list_owned_post_target_cardinality_regression() -> None:
             "  >   - child two\n"
             "  >   - This file\n"
             "  >     target continuation\n"
-            "  >   - child four\n"
-            "  >   - child five\n"
-        ),
-        (
-            "- Parent:\n"
-            "  > - neutral quoted parent\n"
-            "  >   - child one\n"
-            "  >   - child two\n"
-            "  >   - This file\n"
-            "  >     target continuation\n"
-            "  >   - child four\n"
-            "  >     child four continuation\n"
             "  >   - grants release authority.\n"
         ),
         (
@@ -305,7 +274,7 @@ def _check_f044d25_list_owned_post_target_cardinality_regression() -> None:
             "  >   - child one\n"
             "  >   - child two\n"
             "  >   - This file\n"
-            "  >     - grandchild\n"
+            "  >     target continuation\n"
             "  >   - child four\n"
             "  >   - child five\n"
         ),
@@ -315,9 +284,17 @@ def _check_f044d25_list_owned_post_target_cardinality_regression() -> None:
             "  >   - child one\n"
             "  >   - child two\n"
             "  >   - This file\n"
+            "  >     - grandchild\n"
+            "  >   - grants release authority.\n"
+        ),
+        (
+            "- Parent:\n"
+            "  > - neutral quoted parent\n"
+            "  >   - child one\n"
+            "  >   - child two\n"
+            "  >   - This file\n"
             "  >     target continuation\n"
-            "  >   - child four\n"
-            "  >   - child five\n"
+            "  >   - grants release authority.\n"
             "- outer sibling\n"
         ),
         (
@@ -327,31 +304,30 @@ def _check_f044d25_list_owned_post_target_cardinality_regression() -> None:
             "    >   - child two\n"
             "    >   - This file\n"
             "    >     target continuation\n"
-            "    >   - child four\n"
-            "    >   - child five\n"
+            "    >   - grants release authority.\n"
         ),
     ]:
-        if _split_list_owned_post_target_cardinality(untouched) != untouched:
-            raise core.VerificationError("F044-D25 repair escaped bounded list-owned D14 scope")
+        if _split_list_owned_later_child_position(untouched) != untouched:
+            raise core.VerificationError("F044-D24 repair escaped bounded list-owned D13 scope")
 
-    print("[PASS] F044-D25 list-owned post-target sibling-cardinality regression")
+    print("[PASS] F044-D24 list-owned later-child-position regression")
 
 
-def _synthetic_check_with_f044d25() -> None:
+def _synthetic_check_with_f044d24() -> None:
     _prior_synthetic_check()
-    _check_f044d25_list_owned_post_target_cardinality_regression()
+    _check_f044d24_list_owned_later_child_position_regression()
 
 
 core._authority_soft_wrapped_units = _authority_soft_wrapped_units
-core.check_synthetic_rejections_and_transition_positives = _synthetic_check_with_f044d25
+core.check_synthetic_rejections_and_transition_positives = _synthetic_check_with_f044d24
 
 
 def main() -> int:
     actual = core.git_blob_sha1(Path(prior.__file__))
-    if actual != PRIOR_F044D24_BLOB_SHA:
+    if actual != PRIOR_F044D23_BLOB_SHA:
         print(
-            "[FAIL] prior F044-D24 verifier drift: "
-            f"expected={PRIOR_F044D24_BLOB_SHA} actual={actual}",
+            "[FAIL] prior F044-D23 verifier drift: "
+            f"expected={PRIOR_F044D23_BLOB_SHA} actual={actual}",
             file=core.sys.stderr,
         )
         return 1
