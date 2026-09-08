@@ -174,7 +174,6 @@ def _check_f044d27_list_owned_tail_cardinality_regression() -> None:
         )
     core.validate_layer_b_non_authority_text("acceptance/inert.md", representative)
 
-    # Three final siblings are the same proven cardinality dimension.
     core.validate_layer_b_non_authority_text(
         "acceptance/inert.md",
         "- Parent:\n"
@@ -190,7 +189,6 @@ def _check_f044d27_list_owned_tail_cardinality_regression() -> None:
         "  >   - neutral final three\n",
     )
 
-    # Inherited outer contexts remain visible to every final sibling.
     core.expect_failure_message(
         "F044-D27 later final sibling inherits outer-list self-reference",
         "publishes forbidden self-promotion",
@@ -226,7 +224,6 @@ def _check_f044d27_list_owned_tail_cardinality_regression() -> None:
         ),
     )
 
-    # Local self-reference from target or post-target must not leak into final siblings.
     core.validate_layer_b_non_authority_text(
         "acceptance/inert.md",
         "- neutral outer\n"
@@ -254,7 +251,6 @@ def _check_f044d27_list_owned_tail_cardinality_regression() -> None:
         "  >   - neutral final two\n",
     )
 
-    # Exactly one final sibling remains delegated to D26.
     delegated_d26 = (
         "- Parent:\n"
         "  > - neutral quoted parent\n"
@@ -270,24 +266,23 @@ def _check_f044d27_list_owned_tail_cardinality_regression() -> None:
         raise core.VerificationError("F044-D27 escaped into D26 one-final-sibling scope")
     core.validate_layer_b_non_authority_text("acceptance/inert.md", delegated_d26)
 
-    # Withdrawn top-level D16 family stays untouched and accepted by the predecessor chain.
+    # Exact withdrawn D16 representative from FJ899/8 PR #464.
     top_level_d16 = (
-        "> - neutral quoted parent\n"
+        "> - neutral parent\n"
         ">   - child one\n"
         ">   - child two\n"
         ">   - This file\n"
         ">     target continuation\n"
-        ">   - neutral post-target\n"
+        ">   - neutral post-target one\n"
         ">     post-target continuation\n"
+        ">   - neutral post-target two\n"
         ">   - grants release authority.\n"
-        ">   - neutral extra final sibling\n"
     )
     if _split_list_owned_final_sibling_run(top_level_d16) != top_level_d16:
         raise core.VerificationError("F044-D27 escaped into withdrawn top-level D16 family")
     core.validate_layer_b_non_authority_text("acceptance/inert.md", top_level_d16)
 
     for untouched in [
-        # A final sibling with its own continuation is outside D27.
         (
             "- Parent:\n"
             "  > - neutral quoted parent\n"
@@ -301,7 +296,6 @@ def _check_f044d27_list_owned_tail_cardinality_regression() -> None:
             "  >     final continuation\n"
             "  >   - grants release authority.\n"
         ),
-        # Additional post-target child with continuation remains outside.
         (
             "- Parent:\n"
             "  > - neutral quoted parent\n"
