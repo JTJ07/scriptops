@@ -1,32 +1,24 @@
 #!/usr/bin/env python3
-"""Bounded F044-D17 list-owned outer-quote sibling overlay.
+"""Bounded F044-D18 list-owned quote continuation-run overlay.
 
-The repaired F044-D15 verifier is retained byte-for-byte at
-`scripts/verify_repository_f044d15_post_target_continuation.py` and pinned by
-Git blob SHA. This entrypoint repairs exactly one non-vacuously reproduced
-list-owned quote shape:
+The repaired F044-D17 verifier is retained byte-for-byte at
+`scripts/verify_repository_f044d17_list_owned_outer_quote.py` and pinned by Git
+blob SHA. D17 repairs exactly one ordinary continuation line in one exact
+list-owned outer-quote child/sibling shape. D18 non-vacuously reproduces the
+same root cause with two continuation lines. This layer generalizes only that
+continuation-run-length dimension for runs of two or more lines.
 
-- one nonempty source-column-zero outer list item;
-- one block quote whose marker begins at that outer item's content indentation;
-- inside the quote, one nonempty quoted parent list item at quote-content column 0;
-- exactly one nonempty nested child at the quoted parent's content indentation;
-- exactly one ordinary continuation line owned by that child;
-- exactly one nonempty sibling child returning to the same child marker indent;
-- BOF/blank before and EOF/blank after.
-
-The outer list item and quoted parent are repeated into both child authority
-units. The first child keeps its one continuation line; the sibling is separate.
-Multiple continuation lines, additional child siblings, deeper nesting,
-blank/fence/heading/HTML transitions, multiple quoted parent items, outer-list
+Exactly one continuation line remains delegated to D17. Additional child
+siblings, deeper nesting, block transitions, multiple quoted parents, outer-list
 siblings, nested outer lists and other list-owned quote recursion remain outside.
 """
 from __future__ import annotations
 
 from pathlib import Path
-import verify_repository_f044d15_post_target_continuation as prior
+import verify_repository_f044d17_list_owned_outer_quote as prior
 
-PRIOR_F044D15_POST_TARGET_CONTINUATION_BLOB_SHA = (
-    "d12fcc3fbbadf52173d161b26d690e2bbb653bd2"
+PRIOR_F044D17_LIST_OWNED_QUOTE_BLOB_SHA = (
+    "bb159df7a1920b952d7a65ea741cca2460128b00"
 )
 
 core = prior.core
@@ -35,21 +27,15 @@ _prior_authority_soft_wrapped_units = core._authority_soft_wrapped_units
 _prior_synthetic_check = core.check_synthetic_rejections_and_transition_positives
 
 
-def _split_exact_list_owned_outer_quote_siblings(text: str) -> str:
-    """Normalize only outer-list -> quote-parent -> child+1-line -> sibling."""
+def _split_list_owned_quote_continuation_run(text: str) -> str:
+    """Normalize D17 shape only when child-one owns >=2 ordinary lines."""
     lines = text.splitlines()
     output: list[str] = []
     index = 0
 
     while index < len(lines):
-        if index + 4 >= len(lines):
-            output.append(lines[index])
-            index += 1
-            continue
-
         bounded_before = index == 0 or not lines[index - 1].strip()
-        bounded_after = index + 5 == len(lines) or not lines[index + 5].strip()
-        if not bounded_before or not bounded_after:
+        if not bounded_before or index + 5 >= len(lines):
             output.append(lines[index])
             index += 1
             continue
@@ -57,8 +43,6 @@ def _split_exact_list_owned_outer_quote_siblings(text: str) -> str:
         outer_raw = lines[index]
         quote_parent_raw = lines[index + 1]
         child_one_raw = lines[index + 2]
-        continuation_raw = lines[index + 3]
-        child_two_raw = lines[index + 4]
 
         outer_layout = singleline._markdown_list_item_layout(outer_raw)
         if outer_layout is None:
@@ -79,57 +63,24 @@ def _split_exact_list_owned_outer_quote_siblings(text: str) -> str:
             child_one_raw,
             allow_deep_indent=True,
         )
-        continuation_quote = singleline._markdown_block_quote_layout(
-            continuation_raw,
-            allow_deep_indent=True,
-        )
-        child_two_quote = singleline._markdown_block_quote_layout(
-            child_two_raw,
-            allow_deep_indent=True,
-        )
-        if any(
-            layout is None
-            for layout in (
-                quote_parent_layout,
-                child_one_quote,
-                continuation_quote,
-                child_two_quote,
-            )
-        ):
+        if quote_parent_layout is None or child_one_quote is None:
             output.append(lines[index])
             index += 1
             continue
 
         quote_indent, quote_parent_content = quote_parent_layout
         child_one_quote_indent, child_one_content = child_one_quote
-        continuation_quote_indent, continuation_content = continuation_quote
-        child_two_quote_indent, child_two_content = child_two_quote
-        if not (
-            quote_indent == outer_content_indent
-            and child_one_quote_indent == quote_indent
-            and continuation_quote_indent == quote_indent
-            and child_two_quote_indent == quote_indent
-        ):
+        if quote_indent != outer_content_indent or child_one_quote_indent != quote_indent:
             output.append(lines[index])
             index += 1
             continue
 
-        quoted_parent_list = singleline._markdown_list_item_layout(
-            quote_parent_content
-        )
+        quoted_parent_list = singleline._markdown_list_item_layout(quote_parent_content)
         child_one_list = singleline._markdown_list_item_layout(
             child_one_content,
             allow_deep_indent=True,
         )
-        child_two_list = singleline._markdown_list_item_layout(
-            child_two_content,
-            allow_deep_indent=True,
-        )
-        if (
-            quoted_parent_list is None
-            or child_one_list is None
-            or child_two_list is None
-        ):
+        if quoted_parent_list is None or child_one_list is None:
             output.append(lines[index])
             index += 1
             continue
@@ -138,57 +89,75 @@ def _split_exact_list_owned_outer_quote_siblings(text: str) -> str:
             quoted_parent_list
         )
         child_one_marker, child_one_content_indent, child_one_empty, _ = child_one_list
-        child_two_marker, _, child_two_empty, _ = child_two_list
         if (
             quoted_parent_empty
             or child_one_empty
-            or child_two_empty
             or quoted_parent_marker != 0
             or child_one_marker != quoted_parent_content_indent
-            or child_two_marker != child_one_marker
         ):
             output.append(lines[index])
             index += 1
             continue
 
-        if (
-            singleline._markdown_list_item_layout(
-                continuation_content,
+        continuation_indexes: list[int] = []
+        probe = index + 3
+        child_two_index: int | None = None
+
+        while probe < len(lines) and lines[probe].strip():
+            quote_layout = singleline._markdown_block_quote_layout(
+                lines[probe],
                 allow_deep_indent=True,
             )
-            is not None
-        ):
-            output.append(lines[index])
-            index += 1
-            continue
-        continuation_relative = singleline._markdown_remove_leading_columns(
-            continuation_content,
-            child_one_content_indent,
-        )
-        if (
-            continuation_relative is None
-            or not continuation_relative.strip()
-            or not singleline._markdown_block_quote_lazy_paragraph(
-                continuation_relative
+            if quote_layout is None or quote_layout[0] != quote_indent:
+                break
+            _, content = quote_layout
+
+            list_layout = singleline._markdown_list_item_layout(
+                content,
+                allow_deep_indent=True,
             )
-        ):
+            if list_layout is not None:
+                if (
+                    len(continuation_indexes) >= 2
+                    and not list_layout[2]
+                    and list_layout[0] == child_one_marker
+                ):
+                    child_two_index = probe
+                break
+
+            relative = singleline._markdown_remove_leading_columns(
+                content,
+                child_one_content_indent,
+            )
+            if (
+                relative is None
+                or not relative.strip()
+                or not singleline._markdown_block_quote_lazy_paragraph(relative)
+            ):
+                break
+
+            continuation_indexes.append(probe)
+            probe += 1
+
+        if child_two_index is None:
             output.append(lines[index])
             index += 1
             continue
 
-        output.extend(
-            [
-                outer_raw,
-                quote_parent_raw,
-                child_one_raw,
-                continuation_raw,
-                "",
-                outer_raw,
-                quote_parent_raw,
-                child_two_raw,
-            ]
+        bounded_after = (
+            child_two_index + 1 == len(lines)
+            or not lines[child_two_index + 1].strip()
         )
-        index += 5
+        if not bounded_after:
+            output.append(lines[index])
+            index += 1
+            continue
+
+        output.extend([outer_raw, quote_parent_raw, child_one_raw])
+        output.extend(lines[pos] for pos in continuation_indexes)
+        output.append("")
+        output.extend([outer_raw, quote_parent_raw, lines[child_two_index]])
+        index = child_two_index + 1
 
     result = "\n".join(output)
     if text.endswith(("\n", "\r")):
@@ -198,84 +167,102 @@ def _split_exact_list_owned_outer_quote_siblings(text: str) -> str:
 
 def _authority_soft_wrapped_units(text: str) -> list[str]:
     return _prior_authority_soft_wrapped_units(
-        _split_exact_list_owned_outer_quote_siblings(text)
+        _split_list_owned_quote_continuation_run(text)
     )
 
 
-def _check_f044d17_list_owned_outer_quote_regression() -> None:
+def _check_f044d18_list_owned_continuation_run_regression() -> None:
     representative = (
         "- Parent:\n"
         "  > - neutral quoted parent\n"
         "  >   - This file\n"
-        "  >     ordinary continuation\n"
+        "  >     continuation one\n"
+        "  >     continuation two\n"
         "  >   - grants release authority.\n"
     )
 
-    # Mandatory non-vacuity: exact GREEN D15 must reproduce the finding.
     prior_units = _prior_authority_soft_wrapped_units(representative)
     if not any(core.layer_b_self_promotion_claim(unit) for unit in prior_units):
         raise core.VerificationError(
-            "F044-D17 predecessor no longer reproduces list-owned outer-quote finding"
+            "F044-D18 predecessor no longer reproduces two-continuation finding"
         )
 
     expected = (
         "- Parent:\n"
         "  > - neutral quoted parent\n"
         "  >   - This file\n"
-        "  >     ordinary continuation\n"
+        "  >     continuation one\n"
+        "  >     continuation two\n"
         "\n"
         "- Parent:\n"
         "  > - neutral quoted parent\n"
         "  >   - grants release authority.\n"
     )
-    actual = _split_exact_list_owned_outer_quote_siblings(representative)
+    actual = _split_list_owned_quote_continuation_run(representative)
     if actual != expected:
         raise core.VerificationError(
-            "F044-D17 list-owned quote normalization mismatch: "
+            "F044-D18 continuation-run normalization mismatch: "
             f"expected={expected!r} actual={actual!r}"
         )
 
     core.validate_layer_b_non_authority_text("acceptance/inert.md", representative)
 
-    # Outer-list self-reference must remain inherited by the promoted child.
+    # Three lines are the same newly proven run-length dimension.
+    core.validate_layer_b_non_authority_text(
+        "acceptance/inert.md",
+        "- Parent:\n"
+        "  > - neutral quoted parent\n"
+        "  >   - This file\n"
+        "  >     continuation one\n"
+        "  >     continuation two\n"
+        "  >     continuation three\n"
+        "  >   - grants release authority.\n",
+    )
+
+    # Outer and quoted-parent authority context remains inherited by child two.
     core.expect_failure_message(
-        "F044-D17 promoted child inherits outer list self-reference",
+        "F044-D18 sibling inherits outer-list self-reference",
         "publishes forbidden self-promotion",
         lambda: core.validate_layer_b_non_authority_text(
             "acceptance/inert.md",
             "- This file\n"
             "  > - neutral quoted parent\n"
             "  >   - child one\n"
-            "  >     ordinary continuation\n"
+            "  >     continuation one\n"
+            "  >     continuation two\n"
             "  >   - grants release authority.\n",
         ),
     )
-
-    # Quoted-parent self-reference must likewise remain inherited.
     core.expect_failure_message(
-        "F044-D17 promoted child inherits quoted parent self-reference",
+        "F044-D18 sibling inherits quoted-parent self-reference",
         "publishes forbidden self-promotion",
         lambda: core.validate_layer_b_non_authority_text(
             "acceptance/inert.md",
             "- neutral outer\n"
             "  > - This file\n"
             "  >   - child one\n"
-            "  >     ordinary continuation\n"
+            "  >     continuation one\n"
+            "  >     continuation two\n"
             "  >   - grants release authority.\n",
         ),
     )
 
-    # Child-local self-reference must not leak into its sibling.
-    core.validate_layer_b_non_authority_text(
-        "acceptance/inert.md",
-        "- neutral outer\n"
+    # Exactly one continuation remains delegated to D17 and must not be
+    # rewritten by this D18 layer itself.
+    delegated_one = (
+        "- Parent:\n"
         "  > - neutral quoted parent\n"
         "  >   - This file\n"
         "  >     ordinary continuation\n"
-        "  >   - grants release authority.\n",
+        "  >   - grants release authority.\n"
     )
+    if _split_list_owned_quote_continuation_run(delegated_one) != delegated_one:
+        raise core.VerificationError(
+            "F044-D18 run-length generalizer escaped into D17 one-line scope"
+        )
+    core.validate_layer_b_non_authority_text("acceptance/inert.md", delegated_one)
 
-    # Neighboring structures remain intentionally untouched.
+    # Neighboring structural families stay outside this run-length repair.
     for untouched in [
         (
             "- Parent:\n"
@@ -283,13 +270,6 @@ def _check_f044d17_list_owned_outer_quote_regression() -> None:
             "  >   - This file\n"
             "  >     continuation one\n"
             "  >     continuation two\n"
-            "  >   - grants release authority.\n"
-        ),
-        (
-            "- Parent:\n"
-            "  > - neutral quoted parent\n"
-            "  >   - This file\n"
-            "  >     ordinary continuation\n"
             "  >   - neutral child two\n"
             "  >   - grants release authority.\n"
         ),
@@ -297,6 +277,7 @@ def _check_f044d17_list_owned_outer_quote_regression() -> None:
             "- Parent:\n"
             "  > - neutral quoted parent\n"
             "  >   - This file\n"
+            "  >     continuation one\n"
             "  >     - grandchild\n"
             "  >   - grants release authority.\n"
         ),
@@ -304,7 +285,8 @@ def _check_f044d17_list_owned_outer_quote_regression() -> None:
             "- Parent:\n"
             "  > - neutral quoted parent\n"
             "  >   - This file\n"
-            "  >     ordinary continuation\n"
+            "  >     continuation one\n"
+            "  >     continuation two\n"
             "  >   - grants release authority.\n"
             "- outer sibling\n"
         ),
@@ -312,43 +294,36 @@ def _check_f044d17_list_owned_outer_quote_regression() -> None:
             "  - nested outer\n"
             "    > - neutral quoted parent\n"
             "    >   - This file\n"
-            "    >     ordinary continuation\n"
+            "    >     continuation one\n"
+            "    >     continuation two\n"
             "    >   - grants release authority.\n"
         ),
-        (
-            "- Parent:\n"
-            "  > - neutral quoted parent one\n"
-            "  > - neutral quoted parent two\n"
-            "  >   - This file\n"
-            "  >     ordinary continuation\n"
-            "  >   - grants release authority.\n"
-        ),
     ]:
-        if _split_exact_list_owned_outer_quote_siblings(untouched) != untouched:
+        if _split_list_owned_quote_continuation_run(untouched) != untouched:
             raise core.VerificationError(
-                "F044-D17 repair escaped its exact list-owned quote scope"
+                "F044-D18 repair escaped its bounded run-length scope"
             )
 
-    print("[PASS] F044-D17 list-owned outer-quote sibling regression")
+    print("[PASS] F044-D18 list-owned quote continuation-run regression")
 
 
-def _synthetic_check_with_f044d17_list_owned_quote() -> None:
+def _synthetic_check_with_f044d18_continuation_run() -> None:
     _prior_synthetic_check()
-    _check_f044d17_list_owned_outer_quote_regression()
+    _check_f044d18_list_owned_continuation_run_regression()
 
 
 core._authority_soft_wrapped_units = _authority_soft_wrapped_units
 core.check_synthetic_rejections_and_transition_positives = (
-    _synthetic_check_with_f044d17_list_owned_quote
+    _synthetic_check_with_f044d18_continuation_run
 )
 
 
 def main() -> int:
     actual = core.git_blob_sha1(Path(prior.__file__))
-    if actual != PRIOR_F044D15_POST_TARGET_CONTINUATION_BLOB_SHA:
+    if actual != PRIOR_F044D17_LIST_OWNED_QUOTE_BLOB_SHA:
         print(
-            "[FAIL] prior F044-D15 verifier drift: "
-            f"expected={PRIOR_F044D15_POST_TARGET_CONTINUATION_BLOB_SHA} actual={actual}",
+            "[FAIL] prior F044-D17 verifier drift: "
+            f"expected={PRIOR_F044D17_LIST_OWNED_QUOTE_BLOB_SHA} actual={actual}",
             file=core.sys.stderr,
         )
         return 1
