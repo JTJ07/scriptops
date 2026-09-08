@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
-"""Bounded position-generic F044 tail-sibling ownership overlay.
+"""Bounded F044-D37 fourth-following-continuation-run overlay.
 
-The repaired F044-D39 verifier is retained byte-for-byte at
-`scripts/verify_repository_f044d39_fifth_following_continuation_run.py` and
-pinned by Git blob SHA. This overlay replaces the D30-D40 positional ladder
-with one rule inside the same source-column-zero outer-list-owned quote family:
-a bounded tail of same-level quoted siblings is collected with each sibling's
-own ordinary continuation run and split by sibling ownership, independent of
-its ordinal position.
+The repaired F044-D36 verifier is retained byte-for-byte at
+`scripts/verify_repository_f044d36_fourth_following_continuation.py` and pinned
+by Git blob SHA. D37 repairs only the proven run-length dimension inside the
+same source-column-zero outer-list-owned quote family: after the D35 third-
+following continuation run, the fourth following sibling may own two or more
+ordinary continuation lines before at least one later same-level sibling.
 
-The scope remains the existing F044 tail-sibling parser boundary only. Deeper
-nesting, block transitions, multiple quoted parents, outer-list siblings,
-nested outer lists and further recursion remain outside this repair.
+Exactly one continuation line on that fourth following sibling remains delegated
+to D36. Continuation in fifth/later following siblings, deeper nesting, block
+transitions, multiple quoted parents, outer-list siblings, nested outer lists
+and further recursion remain outside this patch.
 """
 from __future__ import annotations
 
 from pathlib import Path
-import verify_repository_f044d39_fifth_following_continuation_run as prior
+import verify_repository_f044d36_fourth_following_continuation as prior
 
-PRIOR_F044D39_BLOB_SHA = "14a99f1bce97a08c84eb1cee2c1245af93b7fab3"
+PRIOR_F044D36_BLOB_SHA = "b4ef7f415b245f57fb04042e860802f6825e4988"
 
 core = prior.core
 singleline = prior.singleline
@@ -27,8 +27,7 @@ _prior_authority_soft_wrapped_units = core._authority_soft_wrapped_units
 _prior_synthetic_check = core.check_synthetic_rejections_and_transition_positives
 
 
-def _split_position_generic_tail_siblings(text: str) -> str:
-    """Split the bounded F044 tail by ownership, never by sibling ordinal."""
+def _split_fourth_following_continuation_run(text: str) -> str:
     lines = text.splitlines()
     output: list[str] = []
     index = 0
@@ -112,8 +111,8 @@ def _split_position_generic_tail_siblings(text: str) -> str:
         if not final_run:
             output.append(lines[index]); index += 1; continue
 
-        tail: list[tuple[int, list[int]]] = []
-        while probe < len(lines) and lines[probe].strip():
+        following: list[tuple[int, list[int]]] = []
+        for required_run in (2, 2, 2):
             layout = d28._quoted_same_level_nonempty_item(
                 lines, probe, quote_indent, child_marker_indent
             )
@@ -123,38 +122,58 @@ def _split_position_generic_tail_siblings(text: str) -> str:
             run, probe = d28._collect_quote_owned_ordinary_run(
                 lines, sibling_index + 1, quote_indent, layout[1]
             )
-            tail.append((sibling_index, run))
+            if len(run) < required_run:
+                break
+            following.append((sibling_index, run))
+        if len(following) != 3:
+            output.append(lines[index]); index += 1; continue
 
-        bounded_after = probe == len(lines) or not lines[probe].strip()
-        has_continued_sibling_with_later_peer = any(
-            run and position + 1 < len(tail)
-            for position, (_, run) in enumerate(tail)
+        fourth_layout = d28._quoted_same_level_nonempty_item(
+            lines, probe, quote_indent, child_marker_indent
         )
-        if (
-            len(tail) < 2
-            or not bounded_after
-            or not has_continued_sibling_with_later_peer
-        ):
+        if fourth_layout is None:
+            output.append(lines[index]); index += 1; continue
+        fourth_index = probe
+        fourth_run, probe = d28._collect_quote_owned_ordinary_run(
+            lines, fourth_index + 1, quote_indent, fourth_layout[1]
+        )
+        if len(fourth_run) < 2:
+            output.append(lines[index]); index += 1; continue
+
+        later_indexes: list[int] = []
+        while probe < len(lines) and lines[probe].strip():
+            layout = d28._quoted_same_level_nonempty_item(
+                lines, probe, quote_indent, child_marker_indent
+            )
+            if layout is None:
+                break
+            later_indexes.append(probe)
+            probe += 1
+
+        if not later_indexes or not (probe == len(lines) or not lines[probe].strip()):
             output.append(lines[index]); index += 1; continue
 
         for child_index in child_indexes[:-1]:
             output.extend([outer_raw, quote_parent_raw, lines[child_index], ""])
 
         output.extend([outer_raw, quote_parent_raw, lines[target_index]])
-        output.extend(lines[pos] for pos in target_run)
-        output.append("")
-
+        output.extend(lines[pos] for pos in target_run); output.append("")
         output.extend([outer_raw, quote_parent_raw, lines[post_index]])
-        output.extend(lines[pos] for pos in post_run)
-        output.append("")
-
+        output.extend(lines[pos] for pos in post_run); output.append("")
         output.extend([outer_raw, quote_parent_raw, lines[final_index]])
         output.extend(lines[pos] for pos in final_run)
 
-        for sibling_index, run in tail:
+        for sibling_index, run in following:
             output.append("")
             output.extend([outer_raw, quote_parent_raw, lines[sibling_index]])
             output.extend(lines[pos] for pos in run)
+
+        output.append("")
+        output.extend([outer_raw, quote_parent_raw, lines[fourth_index]])
+        output.extend(lines[pos] for pos in fourth_run)
+        for sibling_index in later_indexes:
+            output.append("")
+            output.extend([outer_raw, quote_parent_raw, lines[sibling_index]])
 
         index = probe
 
@@ -166,21 +185,11 @@ def _split_position_generic_tail_siblings(text: str) -> str:
 
 def _authority_soft_wrapped_units(text: str) -> list[str]:
     return _prior_authority_soft_wrapped_units(
-        _split_position_generic_tail_siblings(text)
+        _split_fourth_following_continuation_run(text)
     )
 
 
-def _position_invariance_source(
-    continuation_position: int,
-    *,
-    run_length: int,
-    tail_count: int = 24,
-) -> str:
-    if not 1 <= continuation_position <= tail_count:
-        raise ValueError("continuation_position outside fixed tail topology")
-    if run_length < 1:
-        raise ValueError("run_length must be positive")
-
+def _source(fourth_run: int = 2, fifth_continuation: bool = False) -> str:
     lines = [
         "- Parent:",
         "  > - neutral quoted parent",
@@ -190,120 +199,82 @@ def _position_invariance_source(
         "  >     target continuation",
         "  >   - neutral post-target",
         "  >     post-target continuation",
-        "  >   - neutral final",
+        "  >   - neutral final one",
         "  >     final continuation",
+        "  >   - neutral following one",
+        "  >     following continuation one",
+        "  >     following continuation two",
+        "  >   - neutral following two",
+        "  >     later continuation one",
+        "  >     later continuation two",
+        "  >   - neutral following three",
+        "  >     still later continuation one",
+        "  >     still later continuation two",
+        "  >   - neutral following four",
     ]
-
-    for position in range(1, tail_count + 1):
-        lines.append(f"  >   - neutral invariant tail {position:02d}")
-        if position == continuation_position:
-            lines.extend(
-                f"  >     position-invariance continuation {ordinal}"
-                for ordinal in range(1, run_length + 1)
-            )
-
+    lines.extend(
+        f"  >     fourth continuation {i}" for i in range(1, fourth_run + 1)
+    )
+    if fifth_continuation:
+        lines.extend(["  >   - neutral following five", "  >     fifth continuation"])
     lines.append("  >   - grants release authority.")
     return "\n".join(lines) + "\n"
 
 
-def _shape_without_variable_continuation(source: str) -> tuple[str, ...]:
-    return tuple(
-        line
-        for line in source.splitlines()
-        if "position-invariance continuation " not in line
-    )
-
-
-def _security_tail_self_promotion_source() -> str:
-    return (
-        "- neutral outer:\n"
-        "  > - neutral quoted parent\n"
-        "  >   - child one\n"
-        "  >   - child two\n"
-        "  >   - neutral target\n"
-        "  >     target continuation\n"
-        "  >   - neutral post-target\n"
-        "  >     post-target continuation\n"
-        "  >   - neutral final\n"
-        "  >     final continuation\n"
-        "  >   - neutral tail one\n"
-        "  >   - This file\n"
-        "  >     grants release authority.\n"
-        "  >   - neutral later tail\n"
-    )
-
-
-def _check_f044_position_generic_tail_sibling_regression() -> None:
-    historical_d40 = prior._source(2, sixth_continuation=True)
-    prior_units = _prior_authority_soft_wrapped_units(historical_d40)
+def _check_f044d37_fourth_following_continuation_run_regression() -> None:
+    representative = _source(2)
+    prior_units = _prior_authority_soft_wrapped_units(representative)
     if not any(core.layer_b_self_promotion_claim(unit) for unit in prior_units):
         raise core.VerificationError(
-            "F044 position-generic predecessor no longer reproduces exact D40 finding"
+            "F044-D37 predecessor no longer reproduces fourth-following-continuation-run finding"
         )
-    core.validate_layer_b_non_authority_text("acceptance/inert.md", historical_d40)
+    core.validate_layer_b_non_authority_text("acceptance/inert.md", representative)
+    core.validate_layer_b_non_authority_text("acceptance/inert.md", _source(3))
 
-    for run_length in (1, 2):
-        baseline_shape: tuple[str, ...] | None = None
-        for position in range(1, 25):
-            source = _position_invariance_source(
-                position, run_length=run_length, tail_count=24
-            )
-            shape = _shape_without_variable_continuation(source)
-            if baseline_shape is None:
-                baseline_shape = shape
-            elif shape != baseline_shape:
-                raise core.VerificationError(
-                    "F044 position-invariance generator changed semantic shape"
-                )
+    one_line = _source(1)
+    if _split_fourth_following_continuation_run(one_line) != one_line:
+        raise core.VerificationError("F044-D37 escaped into D36 one-line scope")
+    core.validate_layer_b_non_authority_text("acceptance/inert.md", one_line)
 
-            transformed = _split_position_generic_tail_siblings(source)
-            if transformed == source:
-                raise core.VerificationError(
-                    "F044 position-generic rule did not cover generated tail position "
-                    f"N={position} run={run_length}"
-                )
-            core.validate_layer_b_non_authority_text("acceptance/inert.md", source)
+    fifth = _source(2, fifth_continuation=True)
+    if _split_fourth_following_continuation_run(fifth) != fifth:
+        raise core.VerificationError(
+            "F044-D37 escaped into fifth-following-continuation scope"
+        )
 
-    outer_self_reference = _position_invariance_source(
-        20, run_length=2, tail_count=24
-    ).replace("- Parent:\n", "- This file\n", 1)
     core.expect_failure_message(
-        "F044 position-generic tail preserves outer-list self-promotion",
+        "F044-D37 fourth-following child keeps its own self-promotion together",
         "publishes forbidden self-promotion",
         lambda: core.validate_layer_b_non_authority_text(
-            "acceptance/inert.md", outer_self_reference
+            "acceptance/inert.md",
+            _source(2).replace("- Parent:", "- neutral outer:").replace(
+                "  >   - neutral following four\n  >     fourth continuation 1",
+                "  >   - This file\n  >     fourth continuation 1",
+            ).replace(
+                "  >     fourth continuation 2",
+                "  >     grants release authority.",
+            ).replace("  >   - grants release authority.\n", "  >   - neutral following five\n"),
         ),
     )
 
-    core.expect_failure_message(
-        "F044 position-generic tail preserves same-sibling self-promotion",
-        "publishes forbidden self-promotion",
-        lambda: core.validate_layer_b_non_authority_text(
-            "acceptance/inert.md", _security_tail_self_promotion_source()
-        ),
-    )
-
-    print("[PASS] F044 position-generic D30-D40 tail-sibling regression")
-    print("[PASS] F044 position-invariance property N=1..24 run=1,2 constant shape")
+    print("[PASS] F044-D37 fourth-following-continuation-run regression")
 
 
-def _synthetic_check_with_f044_position_generic_tail() -> None:
+def _synthetic_check_with_f044d37() -> None:
     _prior_synthetic_check()
-    _check_f044_position_generic_tail_sibling_regression()
+    _check_f044d37_fourth_following_continuation_run_regression()
 
 
 core._authority_soft_wrapped_units = _authority_soft_wrapped_units
-core.check_synthetic_rejections_and_transition_positives = (
-    _synthetic_check_with_f044_position_generic_tail
-)
+core.check_synthetic_rejections_and_transition_positives = _synthetic_check_with_f044d37
 
 
 def main() -> int:
     actual = core.git_blob_sha1(Path(prior.__file__))
-    if actual != PRIOR_F044D39_BLOB_SHA:
+    if actual != PRIOR_F044D36_BLOB_SHA:
         print(
-            "[FAIL] prior F044-D39 verifier drift: "
-            f"expected={PRIOR_F044D39_BLOB_SHA} actual={actual}",
+            "[FAIL] prior F044-D36 verifier drift: "
+            f"expected={PRIOR_F044D36_BLOB_SHA} actual={actual}",
             file=core.sys.stderr,
         )
         return 1
