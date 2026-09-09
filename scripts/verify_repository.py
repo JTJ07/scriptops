@@ -1,26 +1,27 @@
 #!/usr/bin/env python3
-"""Bounded F044 explicit-quote inner complete-HTML-comment block-leaf overlay.
+"""Bounded fresh-final lazy-quote -> explicit quoted ATX lifecycle overlay.
 
-The repaired explicit-quote inner-ATX verifier is retained byte-for-byte at
-`scripts/verify_repository_f044_explicit_quote_inner_atx.py` and pinned by Git
-blob SHA. This overlay changes only one adjacent lifecycle boundary: a
-source-column-zero explicit block quote whose current quoted paragraph is
-followed by one complete quoted HTML comment and then another explicit quoted
-paragraph.
+The repaired explicit-quote inner complete-HTML-comment verifier is retained
+byte-for-byte at `scripts/verify_repository_f044_explicit_quote_inner_html_comment.py`
+and pinned by Git blob SHA.
 
-Recognition uses the existing CommonMark HTML block parser and is restricted to
-a complete type-2 HTML comment on one quoted source line. The repair flushes the
-prior quoted leaf before the comment and starts a fresh quoted paragraph leaf
-after it. It does not generalize to other HTML block types, incomplete comments,
-fences, thematic breaks, list ownership, recursion/cardinality variants, or
-generic block transitions.
+This overlay changes exactly one residual lifecycle shape: a source-column-zero
+explicit quoted paragraph that remains open through one or more legal lazy
+continuation lines without `>`, followed by an explicit quoted ATX heading and
+then another explicit quoted paragraph. The lazy continuation remains in the
+first paragraph; the ATX heading starts a distinct leaf; the following quoted
+paragraph starts another distinct leaf.
+
+The repair is not a generic lazy-paragraph rewrite and does not generalize to
+HTML, fences, thematic breaks, list-owned quotes, arbitrary block transitions,
+interaction expansion, or all block-quote lifecycle handling.
 """
 from __future__ import annotations
 
 from pathlib import Path
-import verify_repository_f044_explicit_quote_inner_atx as prior
+import verify_repository_f044_explicit_quote_inner_html_comment as prior
 
-PRIOR_EXPLICIT_QUOTE_INNER_ATX_BLOB_SHA = "b4597fcaa8466ac5cb3368c0471589189a9325bd"
+PRIOR_EXPLICIT_QUOTE_INNER_HTML_COMMENT_BLOB_SHA = "cea0a8951479170eaed50b205f654599aac35118"
 
 core = prior.core
 singleline = prior.singleline
@@ -28,35 +29,91 @@ _prior_authority_soft_wrapped_units = core._authority_soft_wrapped_units
 _prior_synthetic_check = core.check_synthetic_rejections_and_transition_positives
 
 
-def _explicit_quote_inner_complete_html_comment_layout(
-    raw_line: str,
-) -> tuple[int, int] | None:
-    content = prior._top_level_quote_content(raw_line)
+def _top_level_quote_content(raw_line: str) -> str | None:
+    if not raw_line.startswith(">"):
+        return None
+    layout = singleline._markdown_block_quote_layout(raw_line)
+    if layout is None or layout[0] != 0:
+        return None
+    return layout[1]
+
+
+def _ordinary_explicit_quote_paragraph_line(raw_line: str) -> bool:
+    content = _top_level_quote_content(raw_line)
+    if content is None or not content.strip():
+        return False
+    if content.lstrip(" \t").startswith(">"):
+        return False
+    if singleline._markdown_list_item_layout(content) is not None:
+        return False
+    return singleline._markdown_block_quote_lazy_paragraph(content)
+
+
+def _explicit_quote_inner_atx_layout(raw_line: str) -> int | None:
+    content = _top_level_quote_content(raw_line)
     if content is None:
         return None
-    layout = singleline._markdown_html_block_start_layout(content)
-    if layout is None:
-        return None
-    indent, block_type = layout
-    if indent != 0 or block_type != 2:
-        return None
-    if not singleline._markdown_html_block_end_matches(content, block_type):
-        return None
-    return layout
+    return singleline._markdown_atx_heading_layout(content)
 
 
-def _split_explicit_quote_inner_complete_html_comment_boundaries(text: str) -> str:
-    """Isolate only complete quoted HTML-comment leaves between quote paragraphs."""
+def _top_level_lazy_quote_continuation_candidate(raw_line: str) -> bool:
+    """Mirror the active-quote lazy-continuation blockers for one unquoted line."""
+    if not raw_line.strip():
+        return False
+    if singleline._markdown_block_quote_layout(raw_line) is not None:
+        return False
+
+    top_fence = singleline._markdown_fenced_code_opening_layout(raw_line)
+    top_html = singleline._markdown_html_block_start_layout(raw_line)
+    top_atx = singleline._markdown_atx_heading_layout(raw_line)
+    top_thematic = singleline._markdown_thematic_break_layout(raw_line)
+    top_list = singleline._markdown_list_item_layout(raw_line)
+    top_list_interrupts = top_list is not None and top_list[3]
+
+    return (
+        top_fence is None
+        and top_html is None
+        and top_atx is None
+        and top_thematic is None
+        and not top_list_interrupts
+    )
+
+
+def _lazy_quote_run_start_before_explicit_atx(
+    lines: list[str],
+    heading_index: int,
+) -> int | None:
+    """Return first lazy-line index for the bounded quoted-paragraph -> ATX shape."""
+    if not (1 < heading_index < len(lines) - 1):
+        return None
+    if _explicit_quote_inner_atx_layout(lines[heading_index]) is None:
+        return None
+    if not _ordinary_explicit_quote_paragraph_line(lines[heading_index + 1]):
+        return None
+
+    cursor = heading_index - 1
+    if not _top_level_lazy_quote_continuation_candidate(lines[cursor]):
+        return None
+
+    while cursor >= 0 and _top_level_lazy_quote_continuation_candidate(lines[cursor]):
+        cursor -= 1
+
+    opener_index = cursor
+    if opener_index < 0:
+        return None
+    if not _ordinary_explicit_quote_paragraph_line(lines[opener_index]):
+        return None
+
+    return opener_index + 1
+
+
+def _split_lazy_quote_before_explicit_atx_boundaries(text: str) -> str:
+    """Flush only a lazy-continued top-level quoted paragraph before quoted ATX."""
     lines = text.splitlines()
     output: list[str] = []
 
     for index, raw_line in enumerate(lines):
-        is_target = (
-            0 < index < len(lines) - 1
-            and _explicit_quote_inner_complete_html_comment_layout(raw_line) is not None
-            and prior._ordinary_explicit_quote_paragraph_line(lines[index - 1])
-            and prior._ordinary_explicit_quote_paragraph_line(lines[index + 1])
-        )
+        is_target = _lazy_quote_run_start_before_explicit_atx(lines, index) is not None
         if not is_target:
             output.append(raw_line)
             continue
@@ -74,11 +131,11 @@ def _split_explicit_quote_inner_complete_html_comment_boundaries(text: str) -> s
 
 def _authority_soft_wrapped_units(text: str) -> list[str]:
     return _prior_authority_soft_wrapped_units(
-        _split_explicit_quote_inner_complete_html_comment_boundaries(text)
+        _split_lazy_quote_before_explicit_atx_boundaries(text)
     )
 
 
-def _frozen_atx_control() -> str:
+def _direct_atx_control() -> str:
     return (
         "> This file\n"
         "> # neutral heading\n"
@@ -86,7 +143,16 @@ def _frozen_atx_control() -> str:
     )
 
 
-def _exact_html_comment_finding() -> str:
+def _fresh_final_lazy_atx_finding() -> str:
+    return (
+        "> This file\n"
+        "lazy continuation\n"
+        "> # neutral heading\n"
+        "> grants release authority.\n"
+    )
+
+
+def _html_comment_control() -> str:
     return (
         "> This file\n"
         "> <!-- neutral comment -->\n"
@@ -94,139 +160,157 @@ def _exact_html_comment_finding() -> str:
     )
 
 
-def _check_f044_explicit_quote_inner_html_comment_regression() -> None:
-    atx_control = _frozen_atx_control()
-    if _split_explicit_quote_inner_complete_html_comment_boundaries(atx_control) != atx_control:
+def _ordinary_lazy_no_boundary_control() -> str:
+    return (
+        "> This file\n"
+        "lazy continuation\n"
+        "grants release authority.\n"
+    )
+
+
+def _check_fresh_final_lazy_quote_to_atx_regression() -> None:
+    direct_atx = _direct_atx_control()
+    if _split_lazy_quote_before_explicit_atx_boundaries(direct_atx) != direct_atx:
         raise core.VerificationError(
-            "F044 HTML-comment repair modified frozen ATX control text"
+            "fresh-final lazy->ATX repair modified direct explicit-quote ATX control"
         )
-    atx_units = _prior_authority_soft_wrapped_units(atx_control)
-    if len(atx_units) != 3:
+    direct_units = _prior_authority_soft_wrapped_units(direct_atx)
+    if len(direct_units) != 3 or any(core.layer_b_self_promotion_claim(u) for u in direct_units):
         raise core.VerificationError(
-            f"F044 frozen ATX control must remain three leaves, got {len(atx_units)}"
-        )
-    atx_normalized = [unit.upper() for unit in atx_units]
-    if not (
-        "THIS FILE" in atx_normalized[0]
-        and "# NEUTRAL HEADING" in atx_normalized[1]
-        and "GRANTS RELEASE AUTHORITY" in atx_normalized[2]
-    ):
-        raise core.VerificationError(
-            "F044 HTML-comment repair changed frozen ATX leaf semantics"
-        )
-    if any(
-        "THIS FILE" in unit and "GRANTS RELEASE AUTHORITY" in unit
-        for unit in atx_normalized
-    ):
-        raise core.VerificationError(
-            "F044 frozen ATX control regressed to pre/post heading fusion"
+            "fresh-final lazy->ATX repair changed direct explicit-quote ATX semantics"
         )
 
-    finding = _exact_html_comment_finding()
+    html_control = _html_comment_control()
+    if _split_lazy_quote_before_explicit_atx_boundaries(html_control) != html_control:
+        raise core.VerificationError(
+            "fresh-final lazy->ATX repair modified complete HTML-comment control"
+        )
+    html_units = _prior_authority_soft_wrapped_units(html_control)
+    if len(html_units) != 3 or any(core.layer_b_self_promotion_claim(u) for u in html_units):
+        raise core.VerificationError(
+            "fresh-final lazy->ATX repair changed complete HTML-comment semantics"
+        )
+
+    lazy_control = _ordinary_lazy_no_boundary_control()
+    if _split_lazy_quote_before_explicit_atx_boundaries(lazy_control) != lazy_control:
+        raise core.VerificationError(
+            "fresh-final lazy->ATX repair split ordinary lazy continuation without ATX boundary"
+        )
+    lazy_units = _prior_authority_soft_wrapped_units(lazy_control)
+    if len(lazy_units) != 1 or not core.layer_b_self_promotion_claim(lazy_units[0]):
+        raise core.VerificationError(
+            "ordinary legal lazy continuation no longer remains one quoted paragraph"
+        )
+
+    finding = _fresh_final_lazy_atx_finding()
     prior_units = _prior_authority_soft_wrapped_units(finding)
     if len(prior_units) != 1 or not core.layer_b_self_promotion_claim(prior_units[0]):
         raise core.VerificationError(
-            "F044 HTML-comment predecessor no longer reproduces one-unit boundary finding"
+            "fresh-final lazy->ATX predecessor no longer reproduces fused finding"
         )
 
-    middle = finding.splitlines()[1]
-    if _explicit_quote_inner_complete_html_comment_layout(middle) != (0, 2):
+    lines = finding.splitlines()
+    if _lazy_quote_run_start_before_explicit_atx(lines, 2) != 1:
         raise core.VerificationError(
-            "F044 HTML-comment repair did not recognize exact complete comment structurally"
+            "fresh-final lazy->ATX repair did not recognize the semantic lazy paragraph tail"
         )
 
     expected = (
         "> This file\n"
+        "lazy continuation\n"
         "\n"
-        "> <!-- neutral comment -->\n"
+        "> # neutral heading\n"
         "\n"
         "> grants release authority.\n"
     )
-    transformed = _split_explicit_quote_inner_complete_html_comment_boundaries(finding)
+    transformed = _split_lazy_quote_before_explicit_atx_boundaries(finding)
     if transformed != expected:
         raise core.VerificationError(
-            "F044 explicit-quote HTML-comment boundary transform mismatch: "
+            "fresh-final lazy->ATX boundary transform mismatch: "
             f"expected={expected!r} actual={transformed!r}"
         )
 
     units = _prior_authority_soft_wrapped_units(transformed)
     if len(units) != 3:
         raise core.VerificationError(
-            f"F044 explicit-quote HTML-comment repair must yield exactly three leaves, got {len(units)}"
+            f"fresh-final lazy->ATX repair must yield exactly three leaves, got {len(units)}"
         )
     normalized = [unit.upper() for unit in units]
-    if "THIS FILE" not in normalized[0]:
+    if not (
+        "THIS FILE" in normalized[0]
+        and "LAZY CONTINUATION" in normalized[0]
+        and "# NEUTRAL HEADING" in normalized[1]
+        and "GRANTS RELEASE AUTHORITY" in normalized[2]
+    ):
         raise core.VerificationError(
-            "F044 HTML-comment first leaf lost preceding quoted paragraph"
-        )
-    if "<!-- NEUTRAL COMMENT -->" not in normalized[1]:
-        raise core.VerificationError(
-            "F044 HTML-comment middle leaf is not the complete quoted comment"
-        )
-    if "GRANTS RELEASE AUTHORITY" not in normalized[2]:
-        raise core.VerificationError(
-            "F044 HTML-comment third leaf lost following quoted paragraph"
+            "fresh-final lazy->ATX repair changed expected three-leaf semantics"
         )
     if any(
         "THIS FILE" in unit and "GRANTS RELEASE AUTHORITY" in unit
         for unit in normalized
     ):
         raise core.VerificationError(
-            "F044 HTML-comment boundary still fuses pre/post comment paragraphs"
+            "fresh-final lazy->ATX repair still fuses security fragments across ATX"
+        )
+    if any(core.layer_b_self_promotion_claim(unit) for unit in units):
+        raise core.VerificationError(
+            "fresh-final lazy->ATX repaired units still produce a false self-promotion claim"
         )
     core.validate_layer_b_non_authority_text("acceptance/inert.md", finding)
 
-    alternate_comment = finding.replace(
-        "> <!-- neutral comment -->\n",
-        "> <!-- structurally different complete comment -->\n",
-        1,
+    alternate = (
+        "> structurally different quoted paragraph\n"
+        "different legal lazy wording\n"
+        "> ###### structurally different heading\n"
+        "> structurally different quoted tail\n"
     )
-    if (
-        _split_explicit_quote_inner_complete_html_comment_boundaries(alternate_comment)
-        == alternate_comment
-    ):
+    if _split_lazy_quote_before_explicit_atx_boundaries(alternate) == alternate:
         raise core.VerificationError(
-            "F044 explicit-quote HTML-comment repair depends on exact comment text"
+            "fresh-final lazy->ATX repair depends on exact payload text"
+        )
+    if len(_prior_authority_soft_wrapped_units(
+        _split_lazy_quote_before_explicit_atx_boundaries(alternate)
+    )) != 3:
+        raise core.VerificationError(
+            "fresh-final lazy->ATX structural alternate does not yield three leaves"
         )
 
     for untouched in [
-        "> This file\n> <!-- incomplete comment\n> grants release authority.\n",
-        "> This file\n> <div>\n> grants release authority.\n",
-        "> This file\n> <style>body{}</style>\n> grants release authority.\n",
-        "> This file\n> <?raw?>\n> grants release authority.\n",
-        "> This file\n> <!DOCTYPE html>\n> grants release authority.\n",
-        "> This file\n> <![CDATA[ raw ]]>\n> grants release authority.\n",
-        "> This file\n> <x-widget>\n> grants release authority.\n",
-        "- owner\n  > This file\n  > <!-- neutral comment -->\n  > grants release authority.\n",
+        "> This file\nlazy continuation\n> <!-- neutral comment -->\n> grants release authority.\n",
+        "> This file\nlazy continuation\n> ***\n> grants release authority.\n",
+        "> This file\nlazy continuation\n> ```\n> grants release authority.\n",
+        "> This file\nlazy continuation\n# top-level heading\n> grants release authority.\n",
+        "- owner\n  > This file\n  lazy continuation\n  > # neutral heading\n  > grants release authority.\n",
     ]:
-        if _split_explicit_quote_inner_complete_html_comment_boundaries(untouched) != untouched:
+        if _split_lazy_quote_before_explicit_atx_boundaries(untouched) != untouched:
             raise core.VerificationError(
-                "F044 explicit-quote HTML-comment repair escaped bounded type-2 scope"
+                "fresh-final lazy->ATX repair escaped bounded top-level quoted-ATX scope"
             )
 
-    print("[PASS] F044 frozen explicit-quote inner ATX control remains three leaves")
-    print("[PASS] F044 explicit-quote inner complete HTML-comment boundary yields three leaves")
-    print("[PASS] F044 explicit-quote HTML-comment split is structural and text-independent")
-    print("[PASS] F044 explicit-quote HTML-comment repair remains bounded to complete type-2 lifecycle")
+    print("[PASS] fresh-final lazy quoted paragraph -> explicit quoted ATX reproduction repaired")
+    print("[PASS] fresh-final lazy->ATX repair preserves first paragraph lazy continuation")
+    print("[PASS] fresh-final lazy->ATX repair preserves direct ATX and HTML-comment controls")
+    print("[PASS] fresh-final lazy->ATX repair leaves ordinary lazy continuation unsplit")
+    print("[PASS] fresh-final lazy->ATX repair is structural/text-independent and bounded")
 
 
-def _synthetic_check_with_f044_explicit_quote_inner_html_comment() -> None:
+def _synthetic_check_with_fresh_final_lazy_quote_to_atx() -> None:
     _prior_synthetic_check()
-    _check_f044_explicit_quote_inner_html_comment_regression()
+    _check_fresh_final_lazy_quote_to_atx_regression()
 
 
 core._authority_soft_wrapped_units = _authority_soft_wrapped_units
 core.check_synthetic_rejections_and_transition_positives = (
-    _synthetic_check_with_f044_explicit_quote_inner_html_comment
+    _synthetic_check_with_fresh_final_lazy_quote_to_atx
 )
 
 
 def main() -> int:
     actual = core.git_blob_sha1(Path(prior.__file__))
-    if actual != PRIOR_EXPLICIT_QUOTE_INNER_ATX_BLOB_SHA:
+    if actual != PRIOR_EXPLICIT_QUOTE_INNER_HTML_COMMENT_BLOB_SHA:
         print(
-            "[FAIL] prior explicit-quote inner-ATX F044 verifier drift: "
-            f"expected={PRIOR_EXPLICIT_QUOTE_INNER_ATX_BLOB_SHA} actual={actual}",
+            "[FAIL] prior explicit-quote inner-HTML-comment verifier drift: "
+            f"expected={PRIOR_EXPLICIT_QUOTE_INNER_HTML_COMMENT_BLOB_SHA} actual={actual}",
             file=core.sys.stderr,
         )
         return 1
