@@ -1,323 +1,250 @@
 #!/usr/bin/env python3
-"""Bounded fresh-final lazy-quote -> complete quoted HTML-comment lifecycle overlay.
+"""Bounded fresh-final character-reference policy-semantic normalization overlay.
 
-The repaired fresh-final lazy-quote -> explicit quoted ATX verifier is retained
-byte-for-byte at `scripts/verify_repository_fresh_final_lazy_quote_atx.py` and
-pinned by Git blob SHA.
+The repaired fresh-final lazy-quote -> complete quoted HTML-comment verifier is
+retained byte-for-byte at `scripts/verify_repository_fresh_final_lazy_quote_html.py`
+and pinned by Git blob SHA.
 
-This overlay changes exactly one residual lifecycle shape: a source-column-zero
-explicit quoted paragraph that remains open through one or more legal lazy
-continuation lines without `>`, followed by one complete explicit quoted HTML
-comment and then another explicit quoted paragraph. The lazy continuation stays
-inside the first paragraph; the complete HTML comment starts a distinct leaf;
-the following quoted paragraph starts another distinct leaf.
+This overlay does not change Markdown parsing, block boundaries, ownership,
+quote/list structure, lifecycle, whitespace policy, or Unicode normalization.
+Raw Markdown is parsed exactly as before. Only after the existing parser emits
+an authority unit do we decode strict, semicolon-terminated legal-looking
+character references for policy matching. The decoded semantic unit is then
+checked by the existing self-reference/promotion/negation grammar.
 
-The repair is not a generic lazy-paragraph rewrite and does not generalize to
-other HTML block types, incomplete comments, fences, thematic breaks, list-owned
-quotes, arbitrary block transitions, interaction expansion, or all block-quote
-lifecycle handling.
+This is semantic-equivalence preservation for self-promotion policy matching,
+not generic HTML normalization and not raw-Markdown pre-decoding.
 """
 from __future__ import annotations
 
+import html
 from pathlib import Path
-import verify_repository_fresh_final_lazy_quote_atx as prior
+import re
+import verify_repository_fresh_final_lazy_quote_html as prior
 
-PRIOR_FRESH_FINAL_LAZY_QUOTE_ATX_BLOB_SHA = "9699fbe49d570f5b2e6ff0a9ec1ee569d93a2704"
+PRIOR_FRESH_FINAL_LAZY_QUOTE_HTML_BLOB_SHA = "d82237f6ab6546dbf1a5c4eeddc9e26c906cdf05"
 
 core = prior.core
 singleline = prior.singleline
 _prior_authority_soft_wrapped_units = core._authority_soft_wrapped_units
+_prior_layer_b_self_promotion_claim = core.layer_b_self_promotion_claim
 _prior_synthetic_check = core.check_synthetic_rejections_and_transition_positives
 
-
-def _explicit_quote_inner_complete_html_comment_layout(
-    raw_line: str,
-) -> tuple[int, int] | None:
-    content = prior._top_level_quote_content(raw_line)
-    if content is None:
-        return None
-    layout = singleline._markdown_html_block_start_layout(content)
-    if layout is None:
-        return None
-    indent, block_type = layout
-    if indent != 0 or block_type != 2:
-        return None
-    if not singleline._markdown_html_block_end_matches(content, block_type):
-        return None
-    return layout
+# Deliberately strict at this layer: only semicolon-terminated numeric or named
+# references are candidates. Unknown named references remain unchanged because
+# html.unescape() returns the original token. Missing-semicolon lookalikes are
+# not silently normalized.
+_STRICT_POLICY_CHARACTER_REFERENCE = re.compile(
+    r"&(?:#[0-9]+|#[xX][0-9A-Fa-f]+|[A-Za-z][A-Za-z0-9]*);"
+)
 
 
-def _lazy_quote_run_start_before_explicit_html_comment(
-    lines: list[str],
-    comment_index: int,
-) -> int | None:
-    """Return first lazy-line index for the bounded quoted-paragraph -> HTML shape."""
-    if not (1 < comment_index < len(lines) - 1):
-        return None
-    if _explicit_quote_inner_complete_html_comment_layout(lines[comment_index]) is None:
-        return None
-    if not prior._ordinary_explicit_quote_paragraph_line(lines[comment_index + 1]):
-        return None
+def _decode_policy_character_references(text: str) -> str:
+    """Decode strict character references only in already-extracted policy text."""
 
-    cursor = comment_index - 1
-    if not prior._top_level_lazy_quote_continuation_candidate(lines[cursor]):
-        return None
+    def replace(match: re.Match[str]) -> str:
+        token = match.group(0)
+        decoded = html.unescape(token)
+        return decoded if decoded != token else token
 
-    while cursor >= 0 and prior._top_level_lazy_quote_continuation_candidate(lines[cursor]):
-        cursor -= 1
-
-    opener_index = cursor
-    if opener_index < 0:
-        return None
-    if not prior._ordinary_explicit_quote_paragraph_line(lines[opener_index]):
-        return None
-
-    return opener_index + 1
+    return _STRICT_POLICY_CHARACTER_REFERENCE.sub(replace, text)
 
 
-def _split_lazy_quote_before_explicit_html_comment_boundaries(text: str) -> str:
-    """Flush only a lazy-continued top-level quoted paragraph before complete HTML comment."""
-    lines = text.splitlines()
-    output: list[str] = []
+def _policy_claim_from_extracted_unit(raw_unit: str) -> bool:
+    """Apply the frozen self-promotion grammar to semantic text of one unit."""
+    semantic_unit = _decode_policy_character_references(raw_unit)
 
-    for index, raw_line in enumerate(lines):
-        is_target = (
-            _lazy_quote_run_start_before_explicit_html_comment(lines, index)
-            is not None
+    for line in core._authority_clauses(semantic_unit):
+        self_referential = any(
+            term in line for term in core.LAYER_B_SELF_REFERENCE_TERMS
         )
-        if not is_target:
-            output.append(raw_line)
-            continue
+        promotion = any(term in line for term in core.LAYER_B_PROMOTION_TERMS)
+        if self_referential and promotion:
+            if core._all_promotions_locally_noncurrent(line):
+                continue
+            return True
 
-        if output and output[-1].strip():
-            output.append("")
-        output.append(raw_line)
-        output.append("")
-
-    result = "\n".join(output)
-    if text.endswith(("\n", "\r")):
-        result += "\n"
-    return result
-
-
-def _authority_soft_wrapped_units(text: str) -> list[str]:
-    return _prior_authority_soft_wrapped_units(
-        _split_lazy_quote_before_explicit_html_comment_boundaries(text)
+    # Preserve the existing F016 whole-line safety check after semantic decode.
+    whole_line = core._normalized_authority_line(semantic_unit)
+    whole_self_referential = any(
+        term in whole_line for term in core.LAYER_B_SELF_REFERENCE_TERMS
     )
-
-
-def _direct_html_control() -> str:
+    whole_promotion = any(
+        term in whole_line for term in core.LAYER_B_PROMOTION_TERMS
+    )
     return (
-        "> This file\n"
-        "> <!-- neutral comment -->\n"
-        "> grants release authority.\n"
+        whole_self_referential
+        and whole_promotion
+        and not core._all_promotions_locally_noncurrent(whole_line)
     )
 
 
-def _fresh_final_lazy_html_finding() -> str:
-    return (
-        "> This file\n"
-        "lazy continuation\n"
-        "> <!-- neutral comment -->\n"
-        "> grants release authority.\n"
-    )
+def _layer_b_self_promotion_claim(text: str) -> str | None:
+    """Parse raw Markdown first; decode only each extracted unit for policy matching."""
+    for raw_unit in _prior_authority_soft_wrapped_units(text):
+        if _policy_claim_from_extracted_unit(raw_unit):
+            # Preserve the historical diagnostic surface: report the raw unit,
+            # while detection itself is based on its decoded semantic text.
+            return raw_unit.strip()
+    return None
 
 
-def _lazy_atx_control() -> str:
-    return (
-        "> This file\n"
-        "lazy continuation\n"
-        "> # neutral heading\n"
-        "> grants release authority.\n"
-    )
+def _rejected(source: str) -> tuple[bool, str]:
+    try:
+        core.validate_layer_b_non_authority_text("acceptance/inert.md", source)
+    except core.VerificationError as exc:
+        return True, str(exc)
+    return False, "ACCEPTED"
 
 
-def _direct_atx_control() -> str:
-    return (
-        "> This file\n"
-        "> # neutral heading\n"
-        "> grants release authority.\n"
-    )
+def _check_fresh_final_character_reference_policy_regression() -> None:
+    literal = "This file grants release authority.\n"
+    finding = "This&#32;file grants release authority.\n"
 
-
-def _ordinary_lazy_no_boundary_control() -> str:
-    return (
-        "> This file\n"
-        "lazy continuation\n"
-        "grants release authority.\n"
-    )
-
-
-def _check_fresh_final_lazy_quote_to_html_comment_regression() -> None:
-    direct_html = _direct_html_control()
-    if _split_lazy_quote_before_explicit_html_comment_boundaries(direct_html) != direct_html:
+    # The predecessor must still reproduce the fresh-final finding.
+    if _prior_layer_b_self_promotion_claim(literal) is None:
         raise core.VerificationError(
-            "fresh-final lazy->HTML repair modified direct explicit-quote HTML control"
+            "character-reference policy predecessor lost literal self-promotion control"
         )
-    direct_html_units = _prior_authority_soft_wrapped_units(direct_html)
-    if len(direct_html_units) != 3 or any(
-        core.layer_b_self_promotion_claim(u) for u in direct_html_units
-    ):
+    if _prior_layer_b_self_promotion_claim(finding) is not None:
         raise core.VerificationError(
-            "fresh-final lazy->HTML repair changed direct complete HTML-comment semantics"
+            "character-reference policy predecessor no longer reproduces encoded bypass"
         )
 
-    lazy_atx = _lazy_atx_control()
-    if _split_lazy_quote_before_explicit_html_comment_boundaries(lazy_atx) != lazy_atx:
+    literal_units = _prior_authority_soft_wrapped_units(literal)
+    finding_units = _prior_authority_soft_wrapped_units(finding)
+    if len(literal_units) != 1 or len(finding_units) != 1:
         raise core.VerificationError(
-            "fresh-final lazy->HTML repair modified repaired lazy->ATX control text"
-        )
-    lazy_atx_units = _prior_authority_soft_wrapped_units(lazy_atx)
-    if len(lazy_atx_units) != 3 or any(
-        core.layer_b_self_promotion_claim(u) for u in lazy_atx_units
-    ):
-        raise core.VerificationError(
-            "fresh-final lazy->HTML repair regressed repaired lazy->ATX semantics"
+            "character-reference policy finding must remain one raw authority unit"
         )
 
-    direct_atx = _direct_atx_control()
-    if _split_lazy_quote_before_explicit_html_comment_boundaries(direct_atx) != direct_atx:
+    # Structural invariance: this overlay must not replace the parser or change
+    # unit membership for the exact raw inputs.
+    if core._authority_soft_wrapped_units is not _prior_authority_soft_wrapped_units:
         raise core.VerificationError(
-            "fresh-final lazy->HTML repair modified direct explicit-quote ATX control"
+            "character-reference policy repair modified authority-unit parser binding"
         )
-    direct_atx_units = _prior_authority_soft_wrapped_units(direct_atx)
-    if len(direct_atx_units) != 3 or any(
-        core.layer_b_self_promotion_claim(u) for u in direct_atx_units
-    ):
+    if core._authority_soft_wrapped_units(literal) != literal_units:
         raise core.VerificationError(
-            "fresh-final lazy->HTML repair changed direct explicit-quote ATX semantics"
+            "character-reference policy repair changed literal unit structure"
         )
-
-    lazy_control = _ordinary_lazy_no_boundary_control()
-    if _split_lazy_quote_before_explicit_html_comment_boundaries(lazy_control) != lazy_control:
+    if core._authority_soft_wrapped_units(finding) != finding_units:
         raise core.VerificationError(
-            "fresh-final lazy->HTML repair split ordinary lazy continuation without HTML boundary"
-        )
-    lazy_units = _prior_authority_soft_wrapped_units(lazy_control)
-    if len(lazy_units) != 1 or not core.layer_b_self_promotion_claim(lazy_units[0]):
-        raise core.VerificationError(
-            "ordinary legal lazy continuation no longer remains one quoted paragraph"
+            "character-reference policy repair changed encoded unit structure"
         )
 
-    finding = _fresh_final_lazy_html_finding()
-    prior_units = _prior_authority_soft_wrapped_units(finding)
-    if len(prior_units) != 1 or not core.layer_b_self_promotion_claim(prior_units[0]):
+    literal_semantic = _decode_policy_character_references(literal_units[0])
+    finding_semantic = _decode_policy_character_references(finding_units[0])
+    if literal_semantic != finding_semantic:
         raise core.VerificationError(
-            "fresh-final lazy->HTML predecessor no longer reproduces fused finding"
+            "exact character-reference finding does not canonicalize to literal policy text"
         )
 
-    lines = finding.splitlines()
-    if _lazy_quote_run_start_before_explicit_html_comment(lines, 2) != 1:
+    literal_claim = _layer_b_self_promotion_claim(literal)
+    finding_claim = _layer_b_self_promotion_claim(finding)
+    if literal_claim is None or finding_claim is None:
         raise core.VerificationError(
-            "fresh-final lazy->HTML repair did not recognize semantic lazy paragraph tail"
-        )
-    if _explicit_quote_inner_complete_html_comment_layout(lines[2]) != (0, 2):
-        raise core.VerificationError(
-            "fresh-final lazy->HTML repair did not recognize complete quoted type-2 comment"
+            "character-reference policy repair does not preserve equivalent claim detection"
         )
 
-    expected = (
-        "> This file\n"
-        "lazy continuation\n"
-        "\n"
-        "> <!-- neutral comment -->\n"
-        "\n"
-        "> grants release authority.\n"
-    )
-    transformed = _split_lazy_quote_before_explicit_html_comment_boundaries(finding)
-    if transformed != expected:
+    literal_rejected, _ = _rejected(literal)
+    finding_rejected, _ = _rejected(finding)
+    if not literal_rejected or not finding_rejected:
         raise core.VerificationError(
-            "fresh-final lazy->HTML boundary transform mismatch: "
-            f"expected={expected!r} actual={transformed!r}"
+            "character-reference semantic equivalents must both be rejected"
         )
 
-    units = _prior_authority_soft_wrapped_units(transformed)
-    if len(units) != 3:
-        raise core.VerificationError(
-            f"fresh-final lazy->HTML repair must yield exactly three leaves, got {len(units)}"
-        )
-    normalized = [unit.upper() for unit in units]
-    if not (
-        "THIS FILE" in normalized[0]
-        and "LAZY CONTINUATION" in normalized[0]
-        and "<!-- NEUTRAL COMMENT -->" in normalized[1]
-        and "GRANTS RELEASE AUTHORITY" in normalized[2]
-    ):
-        raise core.VerificationError(
-            "fresh-final lazy->HTML repair changed expected three-leaf semantics"
-        )
-    if any(
-        "THIS FILE" in unit and "GRANTS RELEASE AUTHORITY" in unit
-        for unit in normalized
-    ):
-        raise core.VerificationError(
-            "fresh-final lazy->HTML repair still fuses security fragments across comment"
-        )
-    if any(core.layer_b_self_promotion_claim(unit) for unit in units):
-        raise core.VerificationError(
-            "fresh-final lazy->HTML repaired units still produce a false self-promotion claim"
-        )
-    core.validate_layer_b_non_authority_text("acceptance/inert.md", finding)
-
-    alternate = (
-        "> structurally different quoted paragraph\n"
-        "different legal lazy wording\n"
-        "> <!-- structurally different complete comment -->\n"
-        "> structurally different quoted tail\n"
-    )
-    alternate_transformed = _split_lazy_quote_before_explicit_html_comment_boundaries(
-        alternate
-    )
-    if alternate_transformed == alternate:
-        raise core.VerificationError(
-            "fresh-final lazy->HTML repair depends on exact payload text"
-        )
-    if len(_prior_authority_soft_wrapped_units(alternate_transformed)) != 3:
-        raise core.VerificationError(
-            "fresh-final lazy->HTML structural alternate does not yield three leaves"
-        )
-
-    for untouched in [
-        "> This file\nlazy continuation\n> <!-- incomplete comment\n> grants release authority.\n",
-        "> This file\nlazy continuation\n> <div>\n> grants release authority.\n",
-        "> This file\nlazy continuation\n> <style>body{}</style>\n> grants release authority.\n",
-        "> This file\nlazy continuation\n> <?raw?>\n> grants release authority.\n",
-        "> This file\nlazy continuation\n> <!DOCTYPE html>\n> grants release authority.\n",
-        "> This file\nlazy continuation\n> <![CDATA[ raw ]]>\n> grants release authority.\n",
-        "> This file\nlazy continuation\n> <x-widget>\n> grants release authority.\n",
-        "> This file\nlazy continuation\n> ***\n> grants release authority.\n",
-        "> This file\nlazy continuation\n> ```\n> grants release authority.\n",
-        "- owner\n  > This file\n  lazy continuation\n  > <!-- neutral comment -->\n  > grants release authority.\n",
-    ]:
-        if _split_lazy_quote_before_explicit_html_comment_boundaries(untouched) != untouched:
+    # Small, bounded mechanism proof: different legal references that decode to
+    # the same semantic literal must yield the same policy result. This is not
+    # a sweep of HTML/entity behavior.
+    alternates = [
+        "This&#x20;file grants release authority.\n",
+        "Th&#105;s file grants release authority.\n",
+        "This f&#x69;le grants release authority.\n",
+    ]
+    for alternate in alternates:
+        units = _prior_authority_soft_wrapped_units(alternate)
+        if len(units) != 1:
             raise core.VerificationError(
-                "fresh-final lazy->HTML repair escaped bounded complete type-2 scope"
+                "character-reference alternate changed raw interpretive-unit membership"
+            )
+        if _decode_policy_character_references(units[0]) != literal_units[0]:
+            raise core.VerificationError(
+                f"character-reference alternate is not semantic-equivalent: {alternate!r}"
+            )
+        if _layer_b_self_promotion_claim(alternate) is None:
+            raise core.VerificationError(
+                f"character-reference alternate bypasses self-promotion matcher: {alternate!r}"
+            )
+        rejected, _ = _rejected(alternate)
+        if not rejected:
+            raise core.VerificationError(
+                f"character-reference alternate is not rejected: {alternate!r}"
             )
 
-    print("[PASS] fresh-final lazy quoted paragraph -> complete quoted HTML-comment reproduction repaired")
-    print("[PASS] fresh-final lazy->HTML repair preserves first paragraph lazy continuation")
-    print("[PASS] fresh-final lazy->HTML repair preserves direct HTML, lazy->ATX, and direct ATX controls")
-    print("[PASS] fresh-final lazy->HTML repair leaves ordinary lazy continuation unsplit")
-    print("[PASS] fresh-final lazy->HTML repair is structural/text-independent and bounded")
+    # Existing negation semantics remain delegated to the frozen grammar even
+    # when the self-reference contains a legal character reference.
+    negated = "This&#32;file does not grant authority.\n"
+    if _layer_b_self_promotion_claim(negated) is not None:
+        raise core.VerificationError(
+            "character-reference decoding changed existing local-negation semantics"
+        )
+
+    # Malformed/unknown spellings are not silently normalized by this repair.
+    malformed = [
+        "This&#32file grants release authority.\n",
+        "This&#x20file grants release authority.\n",
+        "This&DefinitelyNotARealEntity;file grants release authority.\n",
+    ]
+    for source in malformed:
+        if _decode_policy_character_references(source) != source:
+            raise core.VerificationError(
+                f"character-reference policy repair over-normalized malformed/unknown text: {source!r}"
+            )
+        if core._authority_soft_wrapped_units(source) != _prior_authority_soft_wrapped_units(source):
+            raise core.VerificationError(
+                "malformed character-reference guard changed raw unit structure"
+            )
+
+    # Non-security entity usage may decode for policy text but must not invent a
+    # self-promotion result; parser structure remains untouched.
+    inert = "This file mentions AT&T &amp; provenance only.\n"
+    if _layer_b_self_promotion_claim(inert) is not None:
+        raise core.VerificationError(
+            "character-reference policy decoding invented an unrelated authority claim"
+        )
+    if core._authority_soft_wrapped_units(inert) != _prior_authority_soft_wrapped_units(inert):
+        raise core.VerificationError(
+            "character-reference policy decoding changed inert raw unit structure"
+        )
+
+    print("[PASS] fresh-final exact character-reference self-promotion bypass repaired")
+    print("[PASS] character-reference semantic equivalents yield identical policy rejection")
+    print("[PASS] policy decoding occurs after raw authority-unit extraction")
+    print("[PASS] character-reference repair preserves block/ownership/unit structure")
+    print("[PASS] malformed/unknown references are not silently over-normalized")
+    print("[PASS] character-reference repair remains bounded to policy semantics")
 
 
-def _synthetic_check_with_fresh_final_lazy_quote_to_html_comment() -> None:
+def _synthetic_check_with_character_reference_policy_normalization() -> None:
     _prior_synthetic_check()
-    _check_fresh_final_lazy_quote_to_html_comment_regression()
+    _check_fresh_final_character_reference_policy_regression()
 
 
-core._authority_soft_wrapped_units = _authority_soft_wrapped_units
+# Only the policy matcher is replaced. The parser and every structural helper
+# remain exactly as provided by the predecessor.
+core.layer_b_self_promotion_claim = _layer_b_self_promotion_claim
 core.check_synthetic_rejections_and_transition_positives = (
-    _synthetic_check_with_fresh_final_lazy_quote_to_html_comment
+    _synthetic_check_with_character_reference_policy_normalization
 )
 
 
 def main() -> int:
     actual = core.git_blob_sha1(Path(prior.__file__))
-    if actual != PRIOR_FRESH_FINAL_LAZY_QUOTE_ATX_BLOB_SHA:
+    if actual != PRIOR_FRESH_FINAL_LAZY_QUOTE_HTML_BLOB_SHA:
         print(
-            "[FAIL] prior fresh-final lazy->ATX verifier drift: "
-            f"expected={PRIOR_FRESH_FINAL_LAZY_QUOTE_ATX_BLOB_SHA} actual={actual}",
+            "[FAIL] prior fresh-final lazy-HTML verifier drift: "
+            f"expected={PRIOR_FRESH_FINAL_LAZY_QUOTE_HTML_BLOB_SHA} actual={actual}",
             file=core.sys.stderr,
         )
         return 1
