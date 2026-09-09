@@ -1,22 +1,23 @@
 #!/usr/bin/env python3
-"""Bounded F044 multiple quoted-parent sibling-separation overlay.
+"""Bounded F044 explicit-quote inner-ATX block-leaf boundary overlay.
 
-The repaired depth-generic F044 verifier is retained byte-for-byte at
-`scripts/verify_repository_f044_depth_generic_recursion.py` and pinned by Git
-blob SHA. This overlay changes only sibling quoted-parent scope separation:
-when a new quoted parent item begins at the same quote/list level, the previous
-quoted parent's scope ends before authority units are folded.
+The repaired multiple-quoted-parent F044 verifier is retained byte-for-byte at
+`scripts/verify_repository_f044_multiple_quoted_parents.py` and pinned by Git
+blob SHA. This overlay changes only one lifecycle boundary: a source-column-zero
+explicit block quote whose current quoted paragraph is followed by an explicit
+quoted ATX heading and then another explicit quoted paragraph.
 
-This is a structural sibling-boundary rule, not a parent-count enumeration.
-Outer-list sibling transitions, block transitions, new recursion-depth variants,
-parent-count sweeps and other independent F044 dimensions remain outside scope.
+The heading is recognized through the existing CommonMark ATX parser. The
+repair flushes the prior quoted leaf before the heading and starts a fresh quoted
+leaf after it. It does not generalize to fences, HTML, thematic breaks, list
+ownership, recursion/cardinality variants, or generic block transitions.
 """
 from __future__ import annotations
 
 from pathlib import Path
-import verify_repository_f044_depth_generic_recursion as prior
+import verify_repository_f044_multiple_quoted_parents as prior
 
-PRIOR_DEPTH_GENERIC_BLOB_SHA = "8535941463926c4b9101fc462e56eaa28aebf099"
+PRIOR_MULTIPLE_QUOTED_PARENTS_BLOB_SHA = "88bce47c461836cb6db5452e2de02fa5f50630e3"
 
 core = prior.core
 singleline = prior.singleline
@@ -24,176 +25,53 @@ _prior_authority_soft_wrapped_units = core._authority_soft_wrapped_units
 _prior_synthetic_check = core.check_synthetic_rejections_and_transition_positives
 
 
-def _quoted_layout_at(raw_line: str, quote_indent: int) -> tuple[int, str] | None:
-    layout = singleline._markdown_block_quote_layout(
-        raw_line,
-        allow_deep_indent=True,
-    )
-    if layout is None or layout[0] != quote_indent:
+def _top_level_quote_content(raw_line: str) -> str | None:
+    if not raw_line.startswith(">"):
         return None
-    return layout
-
-
-def _quoted_parent_layout(
-    raw_line: str,
-    quote_indent: int,
-) -> tuple[int, int, bool, bool] | None:
-    quote = _quoted_layout_at(raw_line, quote_indent)
-    if quote is None:
+    layout = singleline._markdown_block_quote_layout(raw_line)
+    if layout is None or layout[0] != 0:
         return None
-    layout = singleline._markdown_list_item_layout(quote[1])
-    if layout is None or layout[2] or layout[0] != 0:
+    return layout[1]
+
+
+def _ordinary_explicit_quote_paragraph_line(raw_line: str) -> bool:
+    content = _top_level_quote_content(raw_line)
+    if content is None or not content.strip():
+        return False
+    if content.lstrip(" \t").startswith(">"):
+        return False
+    if singleline._markdown_list_item_layout(content) is not None:
+        return False
+    return singleline._markdown_block_quote_lazy_paragraph(content)
+
+
+def _explicit_quote_inner_atx_layout(raw_line: str) -> int | None:
+    content = _top_level_quote_content(raw_line)
+    if content is None:
         return None
-    return layout
+    return singleline._markdown_atx_heading_layout(content)
 
 
-def _collect_bounded_parent_group(
-    lines: list[str],
-    start: int,
-    quote_indent: int,
-) -> tuple[list[str], int] | None:
-    """Collect one parent -> exactly one child -> optional one ordinary line."""
-    parent = _quoted_parent_layout(lines[start], quote_indent)
-    if parent is None:
-        return None
-    _, parent_content_indent, _, _ = parent
-
-    child_index = start + 1
-    if child_index >= len(lines) or not lines[child_index].strip():
-        return None
-    child_quote = _quoted_layout_at(lines[child_index], quote_indent)
-    if child_quote is None:
-        return None
-    child = singleline._markdown_list_item_layout(
-        child_quote[1],
-        allow_deep_indent=True,
-    )
-    if child is None or child[2] or child[0] != parent_content_indent:
-        return None
-    _, child_content_indent, _, _ = child
-
-    group = [lines[start], lines[child_index]]
-    probe = child_index + 1
-
-    if probe < len(lines) and lines[probe].strip():
-        if _quoted_parent_layout(lines[probe], quote_indent) is not None:
-            return group, probe
-
-        continuation_quote = _quoted_layout_at(lines[probe], quote_indent)
-        if continuation_quote is None:
-            return None
-        if (
-            singleline._markdown_list_item_layout(
-                continuation_quote[1],
-                allow_deep_indent=True,
-            )
-            is not None
-        ):
-            return None
-        relative = singleline._markdown_remove_leading_columns(
-            continuation_quote[1],
-            child_content_indent,
-        )
-        if (
-            relative is None
-            or not relative.strip()
-            or not singleline._markdown_block_quote_lazy_paragraph(relative)
-        ):
-            return None
-        group.append(lines[probe])
-        probe += 1
-
-    return group, probe
-
-
-def _split_sibling_quoted_parents(text: str) -> str:
-    """Separate sibling quoted parents while preserving their outer owner path."""
+def _split_explicit_quote_inner_atx_boundaries(text: str) -> str:
+    """Isolate only quoted ATX leaves between quoted paragraph leaves."""
     lines = text.splitlines()
     output: list[str] = []
-    index = 0
 
-    while index < len(lines):
-        bounded_before = index == 0 or not lines[index - 1].strip()
-        first_owner = singleline._markdown_list_item_layout(lines[index])
-        if (
-            not bounded_before
-            or first_owner is None
-            or first_owner[2]
-            or first_owner[0] != 0
-        ):
-            output.append(lines[index])
-            index += 1
-            continue
-
-        owners = [lines[index]]
-        owner_content_indent = first_owner[1]
-        probe = index + 1
-
-        while probe < len(lines):
-            nested_owner = singleline._markdown_list_item_layout(
-                lines[probe],
-                allow_deep_indent=True,
-            )
-            if (
-                nested_owner is None
-                or nested_owner[2]
-                or nested_owner[0] != owner_content_indent
-            ):
-                break
-            owners.append(lines[probe])
-            owner_content_indent = nested_owner[1]
-            probe += 1
-
-        if probe >= len(lines):
-            output.append(lines[index])
-            index += 1
-            continue
-
-        first_quote = singleline._markdown_block_quote_layout(
-            lines[probe],
-            allow_deep_indent=True,
+    for index, raw_line in enumerate(lines):
+        is_target = (
+            0 < index < len(lines) - 1
+            and _explicit_quote_inner_atx_layout(raw_line) is not None
+            and _ordinary_explicit_quote_paragraph_line(lines[index - 1])
+            and _ordinary_explicit_quote_paragraph_line(lines[index + 1])
         )
-        if first_quote is None or first_quote[0] != owner_content_indent:
-            output.append(lines[index])
-            index += 1
-            continue
-        quote_indent = first_quote[0]
-
-        groups: list[list[str]] = []
-        group_probe = probe
-        invalid = False
-        while group_probe < len(lines) and lines[group_probe].strip():
-            collected = _collect_bounded_parent_group(
-                lines,
-                group_probe,
-                quote_indent,
-            )
-            if collected is None:
-                invalid = True
-                break
-            group, next_probe = collected
-            groups.append(group)
-            group_probe = next_probe
-
-            if group_probe >= len(lines) or not lines[group_probe].strip():
-                break
-            if _quoted_parent_layout(lines[group_probe], quote_indent) is None:
-                invalid = True
-                break
-
-        bounded_after = group_probe == len(lines) or not lines[group_probe].strip()
-        if invalid or len(groups) < 2 or not bounded_after:
-            output.append(lines[index])
-            index += 1
+        if not is_target:
+            output.append(raw_line)
             continue
 
-        for group_number, group in enumerate(groups):
-            if group_number:
-                output.append("")
-            output.extend(owners)
-            output.extend(group)
-
-        index = group_probe
+        if output and output[-1].strip():
+            output.append("")
+        output.append(raw_line)
+        output.append("")
 
     result = "\n".join(output)
     if text.endswith(("\n", "\r")):
@@ -203,118 +81,140 @@ def _split_sibling_quoted_parents(text: str) -> str:
 
 def _authority_soft_wrapped_units(text: str) -> list[str]:
     return _prior_authority_soft_wrapped_units(
-        _split_sibling_quoted_parents(text)
+        _split_explicit_quote_inner_atx_boundaries(text)
     )
 
 
-def _control_one_parent() -> str:
+def _control_ordinary_continuation() -> str:
     return (
-        "- neutral outer\n"
-        "  > - neutral quoted parent A\n"
-        "  >   - This file\n"
-        "  >     ordinary continuation\n"
-        "  >   - grants release authority.\n"
+        "> This file\n"
+        "> ordinary continuation\n"
+        "> grants release authority.\n"
     )
 
 
-def _two_parent_finding() -> str:
+def _exact_atx_finding() -> str:
     return (
-        "- neutral outer\n"
-        "  > - neutral quoted parent A\n"
-        "  >   - This file\n"
-        "  >     ordinary continuation\n"
-        "  > - neutral quoted parent B\n"
-        "  >   - grants release authority.\n"
+        "> This file\n"
+        "> # neutral heading\n"
+        "> grants release authority.\n"
     )
 
 
-def _check_f044_multiple_quoted_parents_regression() -> None:
-    control = _control_one_parent()
-    if _split_sibling_quoted_parents(control) != control:
+def _check_f044_explicit_quote_inner_atx_regression() -> None:
+    control = _control_ordinary_continuation()
+    if _split_explicit_quote_inner_atx_boundaries(control) != control:
         raise core.VerificationError(
-            "F044 multiple-parent repair modified one-parent control"
+            "F044 explicit-quote ATX repair modified ordinary continuation control"
         )
-    core.validate_layer_b_non_authority_text("acceptance/inert.md", control)
+    control_units = _prior_authority_soft_wrapped_units(control)
+    if len(control_units) != 1:
+        raise core.VerificationError(
+            f"F044 explicit-quote ordinary continuation control must remain one unit, got {len(control_units)}"
+        )
+    if not core.layer_b_self_promotion_claim(control_units[0]):
+        raise core.VerificationError(
+            "F044 explicit-quote ordinary continuation control no longer remains one joined claim unit"
+        )
 
-    finding = _two_parent_finding()
+    finding = _exact_atx_finding()
     prior_units = _prior_authority_soft_wrapped_units(finding)
-    if not any(core.layer_b_self_promotion_claim(unit) for unit in prior_units):
+    if len(prior_units) != 1 or not core.layer_b_self_promotion_claim(prior_units[0]):
         raise core.VerificationError(
-            "F044 multiple-parent predecessor no longer reproduces parent-scope finding"
+            "F044 explicit-quote ATX predecessor no longer reproduces one-unit boundary finding"
         )
 
-    transformed = _split_sibling_quoted_parents(finding)
-    if transformed == finding:
+    middle = finding.splitlines()[1]
+    if _explicit_quote_inner_atx_layout(middle) is None:
         raise core.VerificationError(
-            "F044 multiple-parent structural boundary did not transform reproduced finding"
+            "F044 explicit-quote ATX repair did not recognize the exact heading structurally"
         )
-    transformed_units = _prior_authority_soft_wrapped_units(transformed)
+
+    expected = (
+        "> This file\n"
+        "\n"
+        "> # neutral heading\n"
+        "\n"
+        "> grants release authority.\n"
+    )
+    transformed = _split_explicit_quote_inner_atx_boundaries(finding)
+    if transformed != expected:
+        raise core.VerificationError(
+            "F044 explicit-quote ATX boundary transform mismatch: "
+            f"expected={expected!r} actual={transformed!r}"
+        )
+
+    units = _prior_authority_soft_wrapped_units(transformed)
+    if len(units) != 3:
+        raise core.VerificationError(
+            f"F044 explicit-quote ATX repair must yield exactly three leaves, got {len(units)}"
+        )
+    normalized = [unit.upper() for unit in units]
+    if "THIS FILE" not in normalized[0]:
+        raise core.VerificationError(
+            "F044 explicit-quote ATX first leaf lost the preceding quoted paragraph"
+        )
+    if "# NEUTRAL HEADING" not in normalized[1]:
+        raise core.VerificationError(
+            "F044 explicit-quote ATX middle leaf is not the quoted heading"
+        )
+    if "GRANTS RELEASE AUTHORITY" not in normalized[2]:
+        raise core.VerificationError(
+            "F044 explicit-quote ATX third leaf lost the following quoted paragraph"
+        )
     if any(
-        "THIS FILE" in unit.upper()
-        and "GRANTS RELEASE AUTHORITY" in unit.upper()
-        for unit in transformed_units
+        "THIS FILE" in unit and "GRANTS RELEASE AUTHORITY" in unit
+        for unit in normalized
     ):
         raise core.VerificationError(
-            "F044 multiple-parent boundary still fuses sibling parent scopes"
+            "F044 explicit-quote ATX boundary still fuses pre/post heading paragraphs"
         )
     core.validate_layer_b_non_authority_text("acceptance/inert.md", finding)
 
-    outer_self_reference = finding.replace(
-        "- neutral outer\n",
-        "- This file\n",
-        1,
-    ).replace(
-        "  >   - This file\n",
-        "  >   - neutral child\n",
+    alternate_heading = finding.replace(
+        "> # neutral heading\n",
+        "> ###### structurally different heading\n",
         1,
     )
-    core.expect_failure_message(
-        "F044 multiple-parent split preserves outer-owner self-promotion",
-        "publishes forbidden self-promotion",
-        lambda: core.validate_layer_b_non_authority_text(
-            "acceptance/inert.md", outer_self_reference
-        ),
-    )
+    if _split_explicit_quote_inner_atx_boundaries(alternate_heading) == alternate_heading:
+        raise core.VerificationError(
+            "F044 explicit-quote ATX repair depends on the exact heading text"
+        )
 
-    same_parent_self_promotion = finding.replace(
-        "  >     ordinary continuation\n",
-        "  >     grants release authority.\n",
-        1,
-    ).replace(
-        "  >   - grants release authority.\n",
-        "  >   - neutral child B\n",
-        1,
-    )
-    core.expect_failure_message(
-        "F044 multiple-parent split preserves same-parent child self-promotion",
-        "publishes forbidden self-promotion",
-        lambda: core.validate_layer_b_non_authority_text(
-            "acceptance/inert.md", same_parent_self_promotion
-        ),
-    )
+    for untouched in [
+        "> This file\n> ***\n> grants release authority.\n",
+        "> This file\n> ```\n> grants release authority.\n",
+        "> This file\n> <div>\n> grants release authority.\n",
+        "- owner\n  > This file\n  > # neutral heading\n  > grants release authority.\n",
+    ]:
+        if _split_explicit_quote_inner_atx_boundaries(untouched) != untouched:
+            raise core.VerificationError(
+                "F044 explicit-quote ATX repair escaped its bounded block-transition scope"
+            )
 
-    print("[PASS] F044 one-quoted-parent control remains GREEN")
-    print("[PASS] F044 multiple quoted parents parent-scope separation regression")
-    print("[PASS] F044 multiple-parent implementation is structural, not count-enumerated")
+    print("[PASS] F044 explicit-quote ordinary continuation control remains one unit")
+    print("[PASS] F044 explicit-quote inner ATX boundary yields three block leaves")
+    print("[PASS] F044 explicit-quote inner ATX split is structural and text-independent")
+    print("[PASS] F044 explicit-quote inner ATX repair remains bounded to ATX lifecycle")
 
 
-def _synthetic_check_with_f044_multiple_quoted_parents() -> None:
+def _synthetic_check_with_f044_explicit_quote_inner_atx() -> None:
     _prior_synthetic_check()
-    _check_f044_multiple_quoted_parents_regression()
+    _check_f044_explicit_quote_inner_atx_regression()
 
 
 core._authority_soft_wrapped_units = _authority_soft_wrapped_units
 core.check_synthetic_rejections_and_transition_positives = (
-    _synthetic_check_with_f044_multiple_quoted_parents
+    _synthetic_check_with_f044_explicit_quote_inner_atx
 )
 
 
 def main() -> int:
     actual = core.git_blob_sha1(Path(prior.__file__))
-    if actual != PRIOR_DEPTH_GENERIC_BLOB_SHA:
+    if actual != PRIOR_MULTIPLE_QUOTED_PARENTS_BLOB_SHA:
         print(
-            "[FAIL] prior depth-generic F044 verifier drift: "
-            f"expected={PRIOR_DEPTH_GENERIC_BLOB_SHA} actual={actual}",
+            "[FAIL] prior multiple-quoted-parent F044 verifier drift: "
+            f"expected={PRIOR_MULTIPLE_QUOTED_PARENTS_BLOB_SHA} actual={actual}",
             file=core.sys.stderr,
         )
         return 1
