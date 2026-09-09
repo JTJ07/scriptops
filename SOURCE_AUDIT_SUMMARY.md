@@ -1,5 +1,9 @@
 # SOURCE_AUDIT_SUMMARY
 
+> X1B AUTHORITY FENCE — `HISTORICAL_RECONSTRUCTION_PROVENANCE_ONLY`
+>
+> This file is historical audit provenance. Phrases such as `najsilniejsze decyzje`, `kanoniczne wnioski`, `CURRENT`, product law, scope or approval describe historical source material only. They do not establish current X1B state, active-product remediation, HumanDecision authorship admission, merge/deployment authority or V1 authority.
+
 ## Zakres audytu
 
 Pierwotny pakiet źródłowy obejmował:
@@ -44,7 +48,7 @@ Najsilniej udokumentowaną linią jest ScriptOps:
 8. ScriptOps WebAI v5;
 9. ScriptOps Final Master Package i Scope Lock RC1.
 
-## Najsilniejsze decyzje użytkownika
+## Najsilniejsze decyzje użytkownika — historyczne audit provenance
 
 - użytkownik jest ostatecznym decydentem;
 - projektowanie, produkcja i recenzja powinny być rozdzielone;
@@ -53,6 +57,8 @@ Najsilniej udokumentowaną linią jest ScriptOps:
 - AI przygotowuje kandydatów i rekomendacje;
 - kanon i stan mają pozostawać lokalne;
 - RC1 ma dowodzić minimalnego obiegu, nie pełnej wizji.
+
+These historical statements are not current X1B HumanDecision authorship evidence.
 
 ## Poziomy dowodu
 
@@ -71,7 +77,7 @@ Najsilniej udokumentowaną linią jest ScriptOps:
 - określenia „final” i „gotowe” kontra brak implementacji;
 - wiele historycznych dokumentów określających się jako CURRENT.
 
-## Brakujące źródła
+## Brakujące źródła — historyczne
 
 - dokument jawnie łączący Narrative Engine / SPEC-v5 z ScriptOps;
 - formalna decyzja o zmianie nazwy;
@@ -92,4 +98,6 @@ Pakiet obejmował:
 - B4, B5 i Aneks;
 - dwa audyty przejścia.
 
-Repo przechowuje kanoniczne wnioski, kluczowe pliki produktowe i manifest integralności. Pełny pierwotny indeks pozostaje dowodem pomocniczym, ale nie jest wymagany do zwykłego wznowienia pracy.
+Repo przechowuje historyczne wnioski, kluczowe pliki produktowe i manifest integralności. Pełny pierwotny indeks pozostaje dowodem pomocniczym, ale nie jest wymagany do zwykłego wznowienia pracy.
+
+Current X1B state is recovered only from `README.md -> PROJECT_STATE.md -> HANDOFF.md`.
