@@ -1,5 +1,11 @@
 # DECISION_LOG
 
+> X1B AUTHORITY FENCE — `DECISION_PROVENANCE_ONLY`
+>
+> This file preserves historical/semantic decisions. `Status: ACTIVE`, generic Human approval, `approve --why`, canonical wording, or a historical authorization in this log do **not** establish current active-product remediation, deployment state, X1B HumanDecision authorship admission, merge authority, release authority or V1 authority. Current X1B state is recovered only through `README.md -> PROJECT_STATE.md -> HANDOFF.md`.
+>
+> `DECISION_PROVENANCE_ONLY != CURRENT_BOOTSTRAP_AUTHORITY`
+
 Ten plik przechowuje wyłącznie decyzje semantyczne: cel, zakres, kanon, aktywację, kolejność pracy i świadome wyłączenia. Zwykłe zmiany techniczne należą do historii Git.
 
 Nowy wpis powinien, gdy to możliwe, wskazać:
